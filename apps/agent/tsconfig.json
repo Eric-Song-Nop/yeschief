@@ -2,6 +2,7 @@
   "include": ["./src/**/*"],
   "exclude": ["./dist", "./node_modules", "**/*.test.ts", "**/*.spec.ts"],
   "compilerOptions": {
+    "baseUrl": ".",
     "target": "ES2022",
     "module": "ES2022",
     "moduleResolution": "bundler",
@@ -18,10 +19,13 @@
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
+    "paths": {
+      "@yes-chief/shared": ["../../packages/shared/src/index.ts"]
+    },
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "rootDir": "./src",
+    "rootDir": "../..",
     "outDir": "./dist",
     "incremental": true,
     "tsBuildInfoFile": "./dist/.tsbuildinfo"

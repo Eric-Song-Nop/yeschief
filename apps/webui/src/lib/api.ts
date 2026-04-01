@@ -1,4 +1,10 @@
-import type { CreateSessionResult, RecipeSummary } from "@yes-chief/shared"
+import type {
+  ConnectSessionResult,
+  CreateSessionResult,
+  GetSessionResult,
+  GetSessionTimersResult,
+  RecipeSummary,
+} from "@yes-chief/shared"
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000"
@@ -41,3 +47,14 @@ export const createSession = (recipeId: string) =>
     body: JSON.stringify({ recipeId }),
     method: "POST",
   })
+
+export const connectSession = (sessionId: string) =>
+  requestJson<ConnectSessionResult>(`/sessions/${sessionId}/connect`, {
+    method: "POST",
+  })
+
+export const getSession = (sessionId: string) =>
+  requestJson<GetSessionResult>(`/sessions/${sessionId}`)
+
+export const listSessionTimers = (sessionId: string) =>
+  requestJson<GetSessionTimersResult>(`/sessions/${sessionId}/timers`)

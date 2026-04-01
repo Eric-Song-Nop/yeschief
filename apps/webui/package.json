@@ -11,7 +11,8 @@
     "format": "oxfmt --config ../../.oxfmtrc.json --ignore-path ../../.gitignore --ignore-path ../../.oxfmtignore --write .",
     "format:check": "oxfmt --config ../../.oxfmtrc.json --ignore-path ../../.gitignore --ignore-path ../../.oxfmtignore --check .",
     "typecheck": "tsc --noEmit",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:e2e:realtime": "playwright test test/realtime-voice.e2e.ts"
   },
   "dependencies": {
     "@fontsource-variable/roboto": "^5.2.10",
@@ -19,6 +20,7 @@
     "@yes-chief/shared": "workspace:*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "livekit-client": "^2.18.0",
     "lucide-react": "^1.7.0",
     "radix-ui": "^1.4.3",
     "react": "^19.2.4",
@@ -29,6 +31,7 @@
     "tw-animate-css": "^1.4.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.0",
     "@types/node": "^24.12.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",

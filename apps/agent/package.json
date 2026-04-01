@@ -13,6 +13,7 @@
     "format:check": "oxfmt --config ../../.oxfmtrc.json --ignore-path ./.gitignore --ignore-path ./.oxfmtignore --ignore-path ../../.gitignore --ignore-path ../../.oxfmtignore --check .",
     "test": "vitest --run src/runtime-smoke.test.ts src/env.test.ts",
     "test:eval": "vitest --run src/agent.test.ts",
+    "test:voice": "vitest --run src/voice-guidance.test.ts",
     "test:watch": "vitest",
     "preflight": "bun --eval 'import(\"./src/env.ts\").then(({ loadAgentEnv }) => { const diagnostics = loadAgentEnv({ strict: false }); if (diagnostics.missing.length > 0) { console.warn(`Missing LiveKit env vars in root .env: ${diagnostics.missing.join(\", \")}`) } else { console.log(`Loaded LiveKit env from ${diagnostics.sourcePath}`) } }).catch((error) => { console.error(error instanceof Error ? error.message : error); process.exit(1) })'",
     "preflight:strict": "bun --eval 'import(\"./src/env.ts\").then(({ loadAgentEnv }) => loadAgentEnv({ strict: true })).catch((error) => { console.error(error instanceof Error ? error.message : error); process.exit(1) })'",
@@ -33,9 +34,9 @@
     "vitest": "^4.0.18"
   },
   "dependencies": {
-    "@livekit/agents": "^1.0.46",
-    "@livekit/agents-plugin-livekit": "^1.0.46",
-    "@livekit/agents-plugin-silero": "^1.0.46",
+    "@livekit/agents": "^1.2.2",
+    "@livekit/agents-plugin-livekit": "^1.2.2",
+    "@livekit/agents-plugin-silero": "^1.2.2",
     "@livekit/noise-cancellation-node": "^0.1.9",
     "zod": "^3.25.76"
   }

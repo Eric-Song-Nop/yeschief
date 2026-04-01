@@ -2,18 +2,6 @@ import { describe, expect, it } from "bun:test"
 import { buildApp } from "../src/app"
 import { withTestDatabase } from "./test-db"
 
-const requestJson = async (
-  app: ReturnType<typeof buildApp>,
-  request: Request
-) => {
-  const response = await app.handle(request)
-
-  return {
-    response,
-    body: (await response.json()) as unknown,
-  }
-}
-
 describe("recipe and session routes", () => {
   it("returns preset recipes and creates a session snapshot", async () => {
     await withTestDatabase(async () => {

@@ -12,8 +12,10 @@
   },
   "dependencies": {
     "@elysiajs/cors": "latest",
+    "@livekit/protocol": "^1.45.1",
     "@yes-chief/shared": "workspace:*",
-    "elysia": "latest"
+    "elysia": "latest",
+    "livekit-server-sdk": "^2.15.0"
   },
   "devDependencies": {
     "bun-types": "latest",

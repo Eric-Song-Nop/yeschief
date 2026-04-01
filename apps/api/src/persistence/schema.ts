@@ -33,3 +33,22 @@ export const sessions = sqliteTable(
   FOREIGN KEY ("recipeId") REFERENCES preset_recipes("id")
 `
 )
+
+export const timers = sqliteTable(
+  "timers",
+  `
+  "id" TEXT PRIMARY KEY NOT NULL,
+  "sessionId" TEXT NOT NULL,
+  "label" TEXT NOT NULL,
+  "stepIndex" INTEGER NOT NULL,
+  "durationSec" INTEGER NOT NULL,
+  "startedAt" TEXT NOT NULL,
+  "targetAt" TEXT NOT NULL,
+  "status" TEXT NOT NULL,
+  "createdAt" TEXT NOT NULL,
+  "updatedAt" TEXT NOT NULL,
+  "cancelledAt" TEXT,
+  "expiredAt" TEXT,
+  FOREIGN KEY ("sessionId") REFERENCES sessions("id")
+`
+)
