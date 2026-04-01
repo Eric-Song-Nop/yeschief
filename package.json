@@ -1,0 +1,20 @@
+{
+  "name": "yes-chief",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "agent:download-files": "bun run --filter agent download-files",
+    "dev": "bun run --parallel --filter api --filter webui --filter agent dev",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix .",
+    "format": "oxfmt --config ./.oxfmtrc.json --ignore-path ./.gitignore --ignore-path ./.oxfmtignore --write .",
+    "format:check": "oxfmt --config ./.oxfmtrc.json --ignore-path ./.gitignore --ignore-path ./.oxfmtignore --check ."
+  },
+  "devDependencies": {
+    "oxfmt": "^0.20.0",
+    "oxlint": "^1.29.0"
+  }
+}

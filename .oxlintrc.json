@@ -1,0 +1,10 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "ignorePatterns": [
+    ".codex/**",
+    "**/dist/**",
+    "**/node_modules/**",
+    "**/*.d.ts"
+  ],
+  "plugins": ["typescript", "react"]
+}

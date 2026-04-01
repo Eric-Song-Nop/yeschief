@@ -1,0 +1,25 @@
+{
+  "name": "api",
+  "version": "1.0.50",
+  "scripts": {
+    "test": "bun test",
+    "dev": "bun run --watch src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint --config ../../.oxlintrc.json .",
+    "lint:fix": "oxlint --config ../../.oxlintrc.json --fix .",
+    "format": "oxfmt --config ../../.oxfmtrc.json --ignore-path ../../.gitignore --ignore-path ../../.oxfmtignore --write .",
+    "format:check": "oxfmt --config ../../.oxfmtrc.json --ignore-path ../../.gitignore --ignore-path ../../.oxfmtignore --check ."
+  },
+  "dependencies": {
+    "@elysiajs/cors": "latest",
+    "@yes-chief/shared": "workspace:*",
+    "elysia": "latest"
+  },
+  "devDependencies": {
+    "bun-types": "latest",
+    "drizzle-kit": "latest",
+    "drizzle-orm": "latest",
+    "typescript": "^5.9.3"
+  },
+  "module": "src/index.js"
+}

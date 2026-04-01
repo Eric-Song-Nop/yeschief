@@ -1,0 +1,5 @@
+.planning/
+.codex/
+node_modules/
+.env
+*.sqlite
