@@ -32,6 +32,60 @@ const parseSessionIdFromJobMetadata = (metadata?: string) => {
   }
 }
 
+type AgentSessionCloser = Pick<voice.AgentSession, "close">
+const ROOM_DISCONNECTED_EVENT = "disconnected" as const
+type RoomLifecycle = {
+  off: (event: typeof ROOM_DISCONNECTED_EVENT, listener: () => void) => unknown
+  on: (event: typeof ROOM_DISCONNECTED_EVENT, listener: () => void) => unknown
+}
+
+type ShutdownContext = Pick<JobContext, "addShutdownCallback" | "shutdown"> & {
+  room: RoomLifecycle
+}
+
+export const registerGracefulShutdown = ({
+  ctx,
+  session,
+  stopTimerReminderLoop,
+}: {
+  ctx: ShutdownContext
+  session: AgentSessionCloser
+  stopTimerReminderLoop: () => void
+}) => {
+  let teardownPromise: Promise<void> | null = null
+  let shutdownRequested = false
+
+  const handleRoomDisconnected = () => {
+    if (shutdownRequested) {
+      return
+    }
+
+    shutdownRequested = true
+    ctx.shutdown("room disconnected")
+  }
+
+  const teardown = async () => {
+    if (teardownPromise) {
+      return teardownPromise
+    }
+
+    teardownPromise = (async () => {
+      ctx.room.off(ROOM_DISCONNECTED_EVENT, handleRoomDisconnected)
+      stopTimerReminderLoop()
+      await session.close()
+    })()
+
+    return teardownPromise
+  }
+
+  ctx.room.on(ROOM_DISCONNECTED_EVENT, handleRoomDisconnected)
+  ctx.addShutdownCallback(teardown)
+
+  return {
+    teardown,
+  }
+}
+
 export default defineAgent({
   prewarm: async (proc: JobProcess) => {
     proc.userData.vad = await silero.VAD.load()
@@ -93,11 +147,16 @@ export default defineAgent({
 
     await ctx.connect()
 
-    startTimerReminderLoop({
+    const stopTimerReminderLoop = startTimerReminderLoop({
       apiClient,
       session,
       sessionId,
       snapshotStore,
+    })
+    registerGracefulShutdown({
+      ctx,
+      session,
+      stopTimerReminderLoop,
     })
 
     session.generateReply({

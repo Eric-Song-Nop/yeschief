@@ -25,6 +25,7 @@ export const startTimerReminderLoop = ({
   snapshotStore,
 }: TimerReminderLoopOptions) => {
   const announcedTimerIds = new Set<string>()
+  let stopped = false
 
   const intervalHandle = setInterval(async () => {
     try {
@@ -61,6 +62,11 @@ export const startTimerReminderLoop = ({
   }, intervalMs)
 
   return () => {
+    if (stopped) {
+      return
+    }
+
+    stopped = true
     clearInterval(intervalHandle)
   }
 }

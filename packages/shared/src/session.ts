@@ -93,3 +93,9 @@ export type ConnectSessionResult = {
   participantToken: string
   serverUrl: string
 }
+
+export type DeleteSessionRoomResult = {
+  sessionId: string
+  roomName: string
+  cleanup: "deleted" | "already_missing"
+}

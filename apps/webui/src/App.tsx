@@ -19,7 +19,12 @@ import {
   useLiveKitRoom,
   type VoiceStatus,
 } from "@/hooks/use-livekit-room"
-import { connectSession, type CompanionTimer } from "@/lib/api"
+import {
+  connectSession,
+  deleteSessionRoom,
+  endSession,
+  type CompanionTimer,
+} from "@/lib/api"
 
 const buildApiRecoveryMessage = (
   message: string | undefined,
@@ -110,6 +115,7 @@ const buildCompletionSummary = (
 }
 
 export function App() {
+  const [isReturningToDiscovery, setIsReturningToDiscovery] = useState(false)
   const [voiceError, setVoiceError] = useState("")
   const [politeAnnouncement, setPoliteAnnouncement] = useState("")
   const [assertiveAnnouncement, setAssertiveAnnouncement] = useState("")
@@ -136,6 +142,7 @@ export function App() {
     recipes,
     recipesError,
     refreshCompanionState,
+    resetSessionState,
     selectedRecipeId,
     sessionResult,
     setSelectedRecipeId,
@@ -188,6 +195,41 @@ export function App() {
           "暂时无法接通语音指导。"
         )
       )
+    }
+  }
+
+  const handleReturnToDiscovery = async (
+    mode: Extract<CompanionStage, "active" | "completed">
+  ) => {
+    if (!displayedSnapshot) {
+      return
+    }
+
+    const sessionId = displayedSnapshot.sessionId
+
+    setVoiceError("")
+    setIsReturningToDiscovery(true)
+
+    try {
+      if (mode === "active") {
+        await endSession(sessionId)
+      }
+
+      await disconnectRoom()
+      await deleteSessionRoom(sessionId)
+      resetSessionState()
+      setPoliteAnnouncement("已返回 Discovery，请重新选择菜谱。")
+    } catch (error) {
+      setVoiceError(
+        buildApiRecoveryMessage(
+          error instanceof Error ? error.message : undefined,
+          mode === "active"
+            ? "暂时无法结束当前会话并返回重选。"
+            : "暂时无法返回重选。"
+        )
+      )
+    } finally {
+      setIsReturningToDiscovery(false)
     }
   }
 
@@ -358,6 +400,18 @@ export function App() {
           </Button>
         ) : null
       }
+      secondaryAction={
+        stage === "active" ? (
+          <Button
+            className="min-h-12 w-full text-base sm:w-auto"
+            disabled={isReturningToDiscovery}
+            onClick={() => void handleReturnToDiscovery("active")}
+            variant="destructive"
+          >
+            {isReturningToDiscovery ? "正在返回重选" : "结束并返回重选"}
+          </Button>
+        ) : null
+      }
       sessionJoinStatus={sessionJoinStatus}
       tutorStatus={tutorStatus}
       voiceActivityLabel={voiceActivityLabel}
@@ -373,7 +427,19 @@ export function App() {
 
   const stageContent =
     stage === "completed" && displayedSummary ? (
-      <SessionSummary summary={displayedSummary} />
+      <SessionSummary
+        action={
+          <Button
+            className="min-h-12 w-full text-base sm:w-auto"
+            disabled={isReturningToDiscovery}
+            onClick={() => void handleReturnToDiscovery("completed")}
+            variant="destructive"
+          >
+            {isReturningToDiscovery ? "正在返回重选" : "返回重选"}
+          </Button>
+        }
+        summary={displayedSummary}
+      />
     ) : stage === "active" && displayedSnapshot ? (
       <SessionDashboard
         recipeTitle={displayedSnapshot.recipeTitle}

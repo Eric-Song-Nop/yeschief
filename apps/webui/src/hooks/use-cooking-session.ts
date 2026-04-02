@@ -215,6 +215,15 @@ export function useCookingSession({ shouldSync }: UseCookingSessionOptions) {
     }
   }
 
+  const resetSessionState = () => {
+    setCreateError("")
+    setLatestSnapshot(null)
+    setSessionResult(null)
+    setSelectedRecipeId("")
+    setSyncError("")
+    setTimers([])
+  }
+
   return {
     createError,
     createSessionForSelectedRecipe,
@@ -224,6 +233,7 @@ export function useCookingSession({ shouldSync }: UseCookingSessionOptions) {
     recipes,
     recipesError,
     refreshCompanionState,
+    resetSessionState,
     selectedRecipeId,
     sessionResult,
     setSelectedRecipeId,

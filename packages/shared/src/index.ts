@@ -11,6 +11,7 @@ export {
   type ConnectSessionResult,
   type CreateSessionInput,
   type CreateSessionResult,
+  type DeleteSessionRoomResult,
   type GetSessionResult,
   type SessionSummary,
   type GetSessionTimersResult,

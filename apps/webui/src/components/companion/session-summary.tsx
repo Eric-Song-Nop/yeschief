@@ -1,3 +1,4 @@
+import type { ReactNode } from "react"
 import type { SessionSummary as SessionSummaryData } from "@yes-chief/shared"
 
 import { Badge } from "@/components/ui/badge"
@@ -10,10 +11,11 @@ import {
 } from "@/components/ui/card"
 
 type SessionSummaryProps = {
+  action?: ReactNode
   summary: SessionSummaryData
 }
 
-export function SessionSummary({ summary }: SessionSummaryProps) {
+export function SessionSummary({ action, summary }: SessionSummaryProps) {
   return (
     <Card className="mx-auto w-full max-w-3xl border-primary/20 bg-background/95 shadow-xl shadow-primary/10">
       <CardHeader className="items-start gap-4 text-left">
@@ -70,6 +72,8 @@ export function SessionSummary({ summary }: SessionSummaryProps) {
         <div className="rounded-3xl border border-border/70 bg-primary/[0.05] px-5 py-5 text-sm leading-7 text-foreground md:text-base">
           {summary.completionMessage}
         </div>
+
+        {action ? <div>{action}</div> : null}
       </CardContent>
     </Card>
   )

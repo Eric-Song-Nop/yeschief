@@ -1,9 +1,11 @@
 import type {
   ConnectSessionResult,
   CreateSessionResult,
+  DeleteSessionRoomResult,
   GetSessionResult,
   GetSessionTimersResult,
   RecipeSummary,
+  SessionCommandResponse,
   SessionTimer,
 } from "@yes-chief/shared"
 
@@ -78,6 +80,19 @@ export const getSession = (sessionId: string) =>
 
 export const listSessionTimers = (sessionId: string) =>
   requestJson<GetSessionTimersResult>(`/sessions/${sessionId}/timers`)
+
+export const endSession = (sessionId: string) =>
+  requestJson<SessionCommandResponse>(`/sessions/${sessionId}/commands`, {
+    body: JSON.stringify({
+      type: "end_session",
+    }),
+    method: "POST",
+  })
+
+export const deleteSessionRoom = (sessionId: string) =>
+  requestJson<DeleteSessionRoomResult>(`/sessions/${sessionId}/room`, {
+    method: "DELETE",
+  })
 
 export const toCompanionTimers = (timers: SessionTimer[]): CompanionTimer[] =>
   timers.map((timer) => ({

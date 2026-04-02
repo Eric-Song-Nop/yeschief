@@ -3,13 +3,14 @@ import type {
   ConnectSessionResult,
   CreateSessionInput,
   CreateSessionResult,
+  DeleteSessionRoomResult,
   GetSessionResult,
   GetSessionTimersResult,
   SessionCommandRequest,
   SessionCommandResponse,
 } from "@yes-chief/shared"
 import { createSession, getSessionById } from "../services/sessions"
-import { connectSession } from "../services/livekit-connect"
+import { connectSession, deleteSessionRoom } from "../services/livekit-connect"
 import { runSessionCommand } from "../services/session-commands"
 import { listTimers } from "../services/timers"
 
@@ -80,6 +81,33 @@ export const sessionsRoutes = new Elysia({ name: "sessions-routes" })
       const result = await connectSession(session.session.sessionId)
 
       return result satisfies ConnectSessionResult
+    } catch (error) {
+      if (isServiceError(error)) {
+        set.status = error.status
+
+        return {
+          message: error.message,
+        }
+      }
+
+      throw error
+    }
+  })
+  .delete("/sessions/:sessionId/room", async ({ params, set }) => {
+    const session = getSessionById(params.sessionId)
+
+    if (!session) {
+      set.status = 404
+
+      return {
+        message: "Session not found",
+      }
+    }
+
+    try {
+      const result = await deleteSessionRoom(session.session.sessionId)
+
+      return result satisfies DeleteSessionRoomResult
     } catch (error) {
       if (isServiceError(error)) {
         set.status = error.status

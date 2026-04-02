@@ -1,4 +1,7 @@
-import type { ConnectSessionResult } from "@yes-chief/shared"
+import type {
+  ConnectSessionResult,
+  DeleteSessionRoomResult,
+} from "@yes-chief/shared"
 import {
   AccessToken,
   AgentDispatchClient,
@@ -10,6 +13,17 @@ const DISPATCH_REQUEST_TIMEOUT_SEC = 10
 const PARTICIPANT_TOKEN_TTL = "15m"
 
 type LiveKitEnv = Record<string, string | undefined>
+type LiveKitConfig = ReturnType<typeof getLiveKitConfig>
+type SessionRoomClient = {
+  createRoom(options: {
+    departureTimeout: number
+    emptyTimeout: number
+    name: string
+  }): Promise<unknown>
+  deleteRoom(room: string): Promise<void>
+  listRooms(names?: string[]): Promise<Array<{ name?: string }>>
+}
+type SessionRoomClientFactory = (config: LiveKitConfig) => SessionRoomClient
 
 const createServiceError = (status: number, message: string) =>
   Object.assign(new Error(message), { status })
@@ -50,7 +64,7 @@ const buildDispatchMetadata = (sessionId: string) =>
   })
 
 const ensureRoomExists = async (
-  roomClient: RoomServiceClient,
+  roomClient: SessionRoomClient,
   roomName: string
 ) => {
   const existingRooms = await roomClient.listRooms([roomName])
@@ -64,6 +78,19 @@ const ensureRoomExists = async (
     emptyTimeout: 60,
     name: roomName,
   })
+}
+
+const createRoomServiceClient = (config: LiveKitConfig): SessionRoomClient =>
+  new RoomServiceClient(config.serverUrl, config.apiKey, config.apiSecret, {
+    requestTimeout: DISPATCH_REQUEST_TIMEOUT_SEC,
+  })
+
+let roomServiceClientFactory: SessionRoomClientFactory = createRoomServiceClient
+
+export const setRoomServiceClientFactoryForTests = (
+  factory: SessionRoomClientFactory | null
+) => {
+  roomServiceClientFactory = factory ?? createRoomServiceClient
 }
 
 const ensureAgentDispatch = async (
@@ -100,14 +127,7 @@ export const connectSession = async (
       requestTimeout: DISPATCH_REQUEST_TIMEOUT_SEC,
     }
   )
-  const roomClient = new RoomServiceClient(
-    config.serverUrl,
-    config.apiKey,
-    config.apiSecret,
-    {
-      requestTimeout: DISPATCH_REQUEST_TIMEOUT_SEC,
-    }
-  )
+  const roomClient = roomServiceClientFactory(config)
 
   try {
     await ensureRoomExists(roomClient, roomName)
@@ -147,5 +167,42 @@ export const connectSession = async (
     roomName,
     serverUrl: config.serverUrl,
     sessionId,
+  }
+}
+
+export const deleteSessionRoom = async (
+  sessionId: string,
+  env: LiveKitEnv = Bun.env
+): Promise<DeleteSessionRoomResult> => {
+  const config = getLiveKitConfig(env)
+  const roomName = sessionId
+  const roomClient = roomServiceClientFactory(config)
+
+  try {
+    const existingRooms = await roomClient.listRooms([roomName])
+
+    if (existingRooms.length === 0) {
+      return {
+        cleanup: "already_missing",
+        roomName,
+        sessionId,
+      }
+    }
+
+    await roomClient.deleteRoom(roomName)
+
+    return {
+      cleanup: "deleted",
+      roomName,
+      sessionId,
+    }
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unknown room cleanup failure"
+
+    throw createServiceError(
+      502,
+      `Failed to delete room for session cleanup: ${message}`
+    )
   }
 }
