@@ -10,6 +10,23 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 
+const getHeatLevelLabel = (
+  heatLevel: SessionSnapshot["currentStep"]["heatLevel"]
+) => {
+  switch (heatLevel) {
+    case "high":
+      return "大火"
+    case "low":
+      return "小火"
+    case "medium":
+      return "中火"
+    case "medium-high":
+      return "中大火"
+    case "off":
+      return "离火"
+  }
+}
+
 type SessionDashboardProps = {
   recipeTitle: string
   statusPanel: ReactNode
@@ -64,7 +81,7 @@ export function SessionDashboard({
                   火候提示
                 </div>
                 <div className="mt-2 text-base font-medium">
-                  {visibleSnapshot.currentStep.heatLevel}
+                  {getHeatLevelLabel(visibleSnapshot.currentStep.heatLevel)}
                 </div>
               </div>
               <div className="rounded-2xl border border-border/70 bg-muted/30 px-4 py-4">

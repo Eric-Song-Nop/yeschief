@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 
 type RecipeSelectionProps = {
+  canJoinVoice: boolean
   createError?: string
   isCreatingSession: boolean
   isJoiningVoice: boolean
@@ -27,6 +28,7 @@ type RecipeSelectionProps = {
 }
 
 export function RecipeSelection({
+  canJoinVoice,
   createError = "",
   isCreatingSession,
   isJoiningVoice,
@@ -163,7 +165,7 @@ export function RecipeSelection({
           </Button>
           <Button
             className="min-h-12 text-base"
-            disabled={!selectedRecipe || isCreatingSession || isJoiningVoice}
+            disabled={!canJoinVoice || isCreatingSession || isJoiningVoice}
             onClick={onJoinVoice}
             variant="secondary"
           >

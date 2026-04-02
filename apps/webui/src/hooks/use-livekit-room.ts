@@ -55,7 +55,11 @@ const buildMicRecoveryMessage = (
 }
 
 const getAudioContextConstructor = () => {
-  return window.AudioContext ?? window.webkitAudioContext
+  return (
+    window.AudioContext ??
+    (window as Window & { webkitAudioContext?: typeof AudioContext })
+      .webkitAudioContext
+  )
 }
 
 const getAgentReady = (room: Room) =>
@@ -187,9 +191,8 @@ export function useLiveKitRoom() {
           nextLevel >= SPEAKING_THRESHOLD ? "speaking" : "idle"
         )
 
-        analysisRef.current.frameId = window.requestAnimationFrame(
-          updateVoiceActivity
-        )
+        analysisRef.current.frameId =
+          window.requestAnimationFrame(updateVoiceActivity)
       }
 
       updateVoiceActivity()

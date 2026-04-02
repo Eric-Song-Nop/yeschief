@@ -1,7 +1,16 @@
-import type { SessionSnapshot } from "@yes-chief/shared"
-import { LoaderCircle, Soup } from "lucide-react"
+import type {
+  SessionSnapshot,
+  SessionSummary as SessionSummaryData,
+} from "@yes-chief/shared"
+import { Soup } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
-import { Button } from "@/components/ui/button"
+import { ConnectionStatus } from "@/components/companion/connection-status"
+import { RecipeSelection } from "@/components/companion/recipe-selection"
+import { SessionDashboard } from "@/components/companion/session-dashboard"
+import { SessionSummary } from "@/components/companion/session-summary"
+import { TimerList } from "@/components/companion/timer-list"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent } from "@/components/ui/card"
 import { useCookingSession } from "@/hooks/use-cooking-session"
 import {
   initialVoiceStatus,
@@ -17,17 +26,6 @@ const buildApiRecoveryMessage = (
   const detail = message?.trim() || fallback
 
   return `请确认 API 与 LiveKit 已启动后重试。 ${detail}`
-}
-
-const getTimerStatusLabel = (status: CompanionTimer["status"]) => {
-  switch (status) {
-    case "cancelled":
-      return "已取消"
-    case "expired":
-      return "已到点"
-    case "running":
-      return "进行中"
-  }
 }
 
 const getLifecycleStatus = (
@@ -64,6 +62,49 @@ const getStepProgressLabel = (snapshot: SessionSnapshot | null) => {
   }
 
   return `第 ${snapshot.currentStepIndex + 1} 步 / 共 ${snapshot.totalSteps} 步`
+}
+
+type CompanionStage = "discovery" | "active" | "completed"
+
+const getCompanionStage = (
+  snapshot: SessionSnapshot | null,
+  summary: SessionSummaryData | null
+): CompanionStage => {
+  if (summary || snapshot?.status === "completed") {
+    return "completed"
+  }
+
+  if (snapshot) {
+    return "active"
+  }
+
+  return "discovery"
+}
+
+const buildCompletionSummary = (
+  snapshot: SessionSnapshot | null
+): SessionSummaryData | null => {
+  if (!snapshot) {
+    return null
+  }
+
+  if (snapshot.summary) {
+    return snapshot.summary
+  }
+
+  return {
+    cancelledTimerCount: snapshot.activeTimers.filter(
+      (timer) => timer.status === "cancelled"
+    ).length,
+    completedAt: snapshot.updatedAt,
+    completionMessage: "本次做菜会话已经结束，你可以稍后再开始下一道菜。",
+    expiredTimerCount: snapshot.activeTimers.filter(
+      (timer) => timer.status === "expired"
+    ).length,
+    finalStepIndex: snapshot.currentStepIndex,
+    recipeTitle: snapshot.recipeTitle,
+    totalSteps: snapshot.totalSteps,
+  }
 }
 
 export function App() {
@@ -147,7 +188,7 @@ export function App() {
   }
 
   const displayedSnapshot = latestSnapshot ?? sessionResult?.session ?? null
-  const displayedSummary = displayedSnapshot?.summary ?? null
+  const existingSummary = displayedSnapshot?.summary ?? null
   const isJoinedCurrentSession = Boolean(
     connectResult &&
     displayedSnapshot &&
@@ -178,6 +219,15 @@ export function App() {
         ? "tutor 在线待机"
         : "暂未检测到远端音频"
   const visibleTimers = timers.filter((timer) => timer.status === "running")
+  const stage = getCompanionStage(displayedSnapshot, existingSummary)
+  const displayedSummary =
+    stage === "completed" ? buildCompletionSummary(displayedSnapshot) : null
+  const stageLabel =
+    stage === "active"
+      ? "Active"
+      : stage === "completed"
+        ? "Completed"
+        : "Discovery"
 
   useEffect(() => {
     const previousVoiceStatus = previousVoiceStatusRef.current
@@ -265,368 +315,133 @@ export function App() {
     }
   }, [roomVoiceError])
 
+  const connectionStatusPanel = (
+    <ConnectionStatus
+      audioStatus={audioStatus}
+      lifecycleStatus={lifecycleStatus}
+      microphoneStatus={microphoneStatus}
+      sessionJoinStatus={sessionJoinStatus}
+      tutorStatus={tutorStatus}
+      voiceActivityLabel={voiceActivityLabel}
+      voiceActivityLevel={voiceActivityLevel}
+      voiceActivityState={voiceActivityState}
+    />
+  )
+
+  const timerListPanel = <TimerList timers={visibleTimers} />
+
+  const activeSummary =
+    displayedSnapshot?.lastCommandResult?.message ??
+    displayedSnapshot?.currentStep.focus
+
+  const stageContent =
+    stage === "completed" && displayedSummary ? (
+      <SessionSummary summary={displayedSummary} />
+    ) : stage === "active" && displayedSnapshot ? (
+      <SessionDashboard
+        recipeTitle={displayedSnapshot.recipeTitle}
+        statusPanel={connectionStatusPanel}
+        stepProgressLabel={getStepProgressLabel(displayedSnapshot)}
+        summary={activeSummary}
+        timerPanel={timerListPanel}
+        visibleSnapshot={displayedSnapshot}
+      />
+    ) : (
+      <RecipeSelection
+        canJoinVoice={Boolean(sessionResult)}
+        createError={createError}
+        isCreatingSession={isCreatingSession}
+        isJoiningVoice={isJoiningVoice}
+        isLoadingRecipes={isLoadingRecipes}
+        onCreateSession={() => void handleCreateSession()}
+        onJoinVoice={() => void handleJoinVoice()}
+        onSelectRecipe={setSelectedRecipeId}
+        recipes={recipes}
+        recipesError={recipesError}
+        selectedRecipeId={selectedRecipeId}
+      />
+    )
+
   return (
     <main className="min-h-svh bg-[radial-gradient(circle_at_top,oklch(0.99_0.02_95),transparent_42%),linear-gradient(180deg,oklch(0.99_0.01_95),oklch(0.96_0.01_95))] px-4 py-6 text-foreground sm:px-6 sm:py-8">
-      <div className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[1.02fr_0.98fr]">
-        <aside className="order-1 rounded-3xl border border-border/70 bg-card/95 p-5 shadow-sm backdrop-blur sm:p-6">
-          <div className="space-y-4">
-            <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-              <Soup className="size-3.5" />
-              Yes Chief Companion
-            </div>
-
-            <div className="space-y-3">
-              <h1 className="font-heading text-2xl font-semibold tracking-tight text-balance md:text-4xl">
-                跟着语音 tutor 做菜
-              </h1>
-              <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-                先开始这道菜，再接通语音指导。页面只负责辅助查看当前进度、连接状态和结束总结。
-              </p>
-            </div>
-
-            <details className="rounded-2xl border border-border/70 bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-              <summary className="cursor-pointer list-none font-medium text-foreground">
-                开发信息
-              </summary>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <div>
-                  <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                    API 地址
-                  </div>
-                  <div className="mt-1 break-all font-mono text-xs text-foreground">
-                    {import.meta.env.VITE_API_BASE_URL ??
-                      "http://localhost:3000"}
-                  </div>
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+        <header className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(19rem,0.7fr)]">
+          <Card className="border-border/70 bg-card/95 backdrop-blur">
+            <CardContent className="flex flex-col gap-5 px-5 pt-5 pb-5 sm:px-6 sm:pt-6 sm:pb-6">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                  <Soup className="size-3.5" />
+                  Yes Chief Companion
                 </div>
-                <div>
-                  <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                    当前会话
-                  </div>
-                  <div className="mt-1 break-all font-mono text-xs text-foreground">
-                    {displayedSnapshot?.sessionId ?? "尚未开始"}
-                  </div>
-                </div>
+                <Badge variant="secondary">{stageLabel}</Badge>
               </div>
-            </details>
-          </div>
 
-          <div className="mt-6 space-y-4">
-            <div className="rounded-2xl border border-border/70 bg-muted/35 p-4">
-              <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                当前选择
+              <div className="space-y-3">
+                <h1 className="font-heading text-3xl font-semibold tracking-tight text-balance md:text-5xl">
+                  跟着语音 tutor 做菜
+                </h1>
+                <p className="max-w-2xl text-sm leading-6 text-muted-foreground md:text-base">
+                  single-page companion
+                  现在按发现、进行中、已完成三段式切换，页面只负责辅助查看，不替代语音主流程。
+                </p>
               </div>
-              {selectedRecipe ? (
-                <div className="mt-3 space-y-2">
-                  <div className="text-xl font-medium">
+
+              {selectedRecipe && stage !== "discovery" ? (
+                <div className="rounded-2xl border border-border/70 bg-muted/30 px-4 py-4">
+                  <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                    当前菜谱
+                  </div>
+                  <div className="mt-2 text-xl font-medium">
                     {selectedRecipe.title}
                   </div>
-                  <div className="text-sm text-muted-foreground">
-                    共 {selectedRecipe.stepCount}{" "}
-                    步，开始后会从第一步进入语音指导。
+                  <div className="mt-1 text-sm text-muted-foreground">
+                    共 {selectedRecipe.stepCount} 步，recipe
+                    列表已退到主舞台之外。
                   </div>
                 </div>
-              ) : (
-                <div className="mt-3 text-sm text-muted-foreground">
-                  先从下方选择一道菜，再开始本次做菜会话。
-                </div>
-              )}
-            </div>
+              ) : null}
+            </CardContent>
+          </Card>
 
-            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-              <Button
-                className="min-h-12 text-base"
-                disabled={
-                  !selectedRecipeId ||
-                  isCreatingSession ||
-                  isLoadingRecipes ||
-                  isJoiningVoice
-                }
-                onClick={() => void handleCreateSession()}
-              >
-                {isCreatingSession ? (
-                  <>
-                    <LoaderCircle className="size-4 animate-spin" />
-                    正在开始
-                  </>
-                ) : (
-                  "开始这道菜"
-                )}
-              </Button>
-
-              <Button
-                className="min-h-12 text-base"
-                disabled={!sessionResult || isJoiningVoice || isCreatingSession}
-                onClick={() => void handleJoinVoice()}
-                variant="secondary"
-              >
-                {isJoiningVoice ? (
-                  <>
-                    <LoaderCircle className="size-4 animate-spin" />
-                    正在接通
-                  </>
-                ) : (
-                  "接通语音指导"
-                )}
-              </Button>
-            </div>
-
-            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                    连接状态
-                  </div>
-                  <div className="mt-2 text-2xl font-semibold tracking-tight">
-                    {lifecycleStatus}
-                  </div>
-                </div>
-                <div className="rounded-full border border-primary/30 bg-background/85 px-3 py-1 text-sm font-medium text-primary">
-                  {tutorStatus}
-                </div>
-              </div>
-
-              <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                <div className="rounded-xl border border-border/70 bg-background/90 px-3 py-2 text-sm">
-                  {microphoneStatus}
-                </div>
-                <div className="rounded-xl border border-border/70 bg-background/90 px-3 py-2 text-sm">
-                  {audioStatus}
-                </div>
-                <div className="rounded-xl border border-border/70 bg-background/90 px-3 py-2 text-sm sm:col-span-2">
-                  {sessionJoinStatus}
-                </div>
-              </div>
-
-              <div className="mt-4 rounded-xl border border-border/70 bg-background/90 px-3 py-3">
-                <div className="flex items-center justify-between gap-3 text-sm">
-                  <span>语音活动</span>
-                  <span
-                    className="text-muted-foreground"
-                    data-state={voiceActivityState}
-                  >
-                    {voiceActivityLabel}
-                  </span>
-                </div>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-primary transition-[width]"
-                    style={{ width: `${voiceActivityLevel * 100}%` }}
-                  />
-                </div>
-              </div>
-
-              <p className="mt-4 text-sm leading-6 text-muted-foreground">
-                接通语音指导后，优先跟着 tutor
-                往下做；页面只负责辅助查看状态，不替代语音主流程。
-              </p>
-            </div>
-
-            {createError ? (
-              <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-                {createError}
-              </div>
-            ) : null}
-
-            {voiceError ? (
-              <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-                {voiceError}
-              </div>
-            ) : null}
-
-            {displayedSummary && displayedSnapshot?.status === "completed" ? (
-              <div className="rounded-3xl border border-border/70 bg-background/90 p-5 shadow-sm">
-                <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                  本次做菜总结
-                </div>
-                <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          <Card className="border-border/70 bg-card/95 backdrop-blur">
+            <CardContent className="px-5 pt-5 pb-5 sm:px-6 sm:pt-6 sm:pb-6">
+              <details className="rounded-2xl border border-border/70 bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+                <summary className="cursor-pointer list-none font-medium text-foreground">
+                  开发信息
+                </summary>
+                <div className="mt-3 grid gap-3">
                   <div>
                     <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                      完成菜谱
+                      API 地址
                     </div>
-                    <div className="mt-1 text-lg font-medium">
-                      {displayedSummary.recipeTitle}
+                    <div className="mt-1 break-all font-mono text-xs text-foreground">
+                      {import.meta.env.VITE_API_BASE_URL ??
+                        "http://localhost:3000"}
                     </div>
                   </div>
                   <div>
                     <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                      结束时间
+                      当前会话
                     </div>
-                    <div className="mt-1 text-sm text-foreground">
-                      {displayedSummary.completedAt}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                      结束于第几步
-                    </div>
-                    <div className="mt-1 text-sm text-foreground">
-                      第 {displayedSummary.finalStepIndex + 1} 步 / 共{" "}
-                      {displayedSummary.totalSteps} 步
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                      计时器结果
-                    </div>
-                    <div className="mt-1 text-sm text-foreground">
-                      已到点 {displayedSummary.expiredTimerCount} 个，已取消{" "}
-                      {displayedSummary.cancelledTimerCount} 个
+                    <div className="mt-1 break-all font-mono text-xs text-foreground">
+                      {displayedSnapshot?.sessionId ?? "尚未开始"}
                     </div>
                   </div>
                 </div>
+              </details>
 
-                <div className="mt-4 rounded-2xl border border-border/70 bg-muted/35 px-4 py-4 text-sm leading-6 text-foreground">
-                  {displayedSummary.completionMessage}
+              {voiceError ? (
+                <div className="mt-4 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+                  {voiceError}
                 </div>
-              </div>
-            ) : (
-              <div className="rounded-3xl border border-border/70 bg-background/90 p-5 shadow-sm">
-                <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                  当前进度
-                </div>
-                {displayedSnapshot ? (
-                  <div className="mt-3 space-y-5">
-                    <div>
-                      <div className="text-lg font-semibold">
-                        {getStepProgressLabel(displayedSnapshot)}
-                      </div>
-                      <div className="mt-1 text-sm text-muted-foreground">
-                        当前菜谱：{displayedSnapshot.recipeTitle}
-                      </div>
-                    </div>
+              ) : null}
+            </CardContent>
+          </Card>
+        </header>
 
-                    <div>
-                      <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                        当前步骤
-                      </div>
-                      <div className="mt-2 text-lg font-medium">
-                        {displayedSnapshot.currentStep.title}
-                      </div>
-                      <div className="mt-2 text-sm leading-6 text-muted-foreground">
-                        {displayedSnapshot.currentStep.instruction}
-                      </div>
-                    </div>
+        <section>{stageContent}</section>
 
-                    <div>
-                      <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                        正在计时
-                      </div>
-                      <div className="mt-3 space-y-2">
-                        {visibleTimers.length > 0 ? (
-                          visibleTimers.map((timer) => (
-                            <div
-                              key={timer.timerId}
-                              className="rounded-2xl border border-border/70 bg-muted/25 px-4 py-3"
-                            >
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="font-medium">{timer.label}</div>
-                                <div className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">
-                                  {getTimerStatusLabel(timer.status)}
-                                </div>
-                              </div>
-                              <div className="mt-2 text-sm text-muted-foreground">
-                                剩余时间：{timer.remainingTimeLabel}
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="rounded-2xl border border-dashed border-border/80 bg-muted/15 px-4 py-4 text-sm leading-6 text-muted-foreground">
-                            当前没有正在计时的项目。需要时直接对 tutor
-                            说“帮我设一个 timer”。
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="mt-3 rounded-2xl border border-dashed border-border/80 bg-muted/15 px-4 py-4 text-sm leading-6 text-muted-foreground">
-                    开始这道菜后，这里会显示当前进度和正在计时的内容。
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="sr-only" ref={audioHostRef} />
-          </div>
-        </aside>
-
-        <section className="order-2 rounded-3xl border border-border/70 bg-card/95 p-5 shadow-sm backdrop-blur sm:p-6">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                选择一道菜
-              </div>
-              <h2 className="mt-2 text-xl font-semibold tracking-tight">
-                先定好菜谱，再接通语音 tutor
-              </h2>
-            </div>
-
-            {isLoadingRecipes ? (
-              <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-                <LoaderCircle className="size-4 animate-spin" />
-                正在加载
-              </div>
-            ) : (
-              <div className="text-sm text-muted-foreground">
-                共 {recipes.length} 道菜
-              </div>
-            )}
-          </div>
-
-          {recipesError ? (
-            <div className="mt-5 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-              {recipesError}
-            </div>
-          ) : null}
-
-          <div
-            aria-label="选择菜谱"
-            className="mt-6 grid gap-3 md:grid-cols-2"
-            role="radiogroup"
-          >
-            {recipes.map((recipe) => {
-              const isSelected = recipe.id === selectedRecipeId
-
-              return (
-                <button
-                  aria-checked={isSelected}
-                  aria-label={`选择菜谱 ${recipe.title}`}
-                  key={recipe.id}
-                  className={[
-                    "rounded-3xl border px-4 py-4 text-left transition focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
-                    isSelected
-                      ? "border-primary bg-primary/10 shadow-sm"
-                      : "border-border/70 bg-background/75 hover:border-primary/40 hover:bg-muted/45",
-                  ].join(" ")}
-                  onClick={() => setSelectedRecipeId(recipe.id)}
-                  role="radio"
-                  type="button"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-lg font-medium">{recipe.title}</div>
-                      <div className="mt-1 text-sm text-muted-foreground">
-                        {recipe.slug}
-                      </div>
-                    </div>
-                    <div className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">
-                      共 {recipe.stepCount} 步
-                    </div>
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-
-          {!isLoadingRecipes && recipes.length === 0 && !recipesError ? (
-            <div className="mt-5 rounded-2xl border border-border/70 bg-muted/35 p-4 text-sm text-muted-foreground">
-              当前没有可开始的菜谱，请稍后再试。
-            </div>
-          ) : null}
-        </section>
+        <div className="sr-only" ref={audioHostRef} />
 
         <div aria-atomic="true" aria-live="polite" className="sr-only">
           {politeAnnouncement}
