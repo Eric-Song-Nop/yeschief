@@ -40,13 +40,28 @@ const presetRecipeSeeds = [
     steps: [
       {
         id: "step-1",
-        title: "Beat the eggs",
+        title: "Gather ingredients",
         instruction:
-          "Whisk the eggs with salt until the yolks and whites fully blend.",
-        focus: "Build a smooth mixture without whipping in too much air.",
+          "Bring the eggs, salt, and butter to your cooking station. Set out a mixing bowl and fork.",
+        focus: "Have everything ready before you start cooking.",
+        tips: [
+          "Room temperature eggs whisk more evenly.",
+          "Use a 10-inch nonstick pan for best results.",
+        ],
+        heatLevel: "off",
+        donenessNotes: "All ingredients are at hand and ready to use.",
+        ingredientIds: ["egg", "salt", "butter"],
+        timerHintSec: 0,
+      },
+      {
+        id: "step-2",
+        title: "Crack and whisk eggs",
+        instruction:
+          "Crack the eggs into a bowl, add a pinch of salt, and whisk until yolks and whites are fully blended.",
+        focus: "Create a smooth mixture without whipping in too much air.",
         tips: [
           "Stop whisking once the mixture looks evenly yellow.",
-          "A fork keeps the eggs tender without foaming them up.",
+          "A fork works better than a whisk to avoid foaming.",
         ],
         heatLevel: "off",
         donenessNotes: "The egg mixture should still pour easily.",
@@ -54,29 +69,59 @@ const presetRecipeSeeds = [
         timerHintSec: 0,
       },
       {
-        id: "step-2",
-        title: "Cook gently",
+        id: "step-3",
+        title: "Heat pan and melt butter",
         instruction:
-          "Melt the butter, pour in the eggs, and stir slowly over low heat.",
-        focus: "Set soft curds without browning the eggs.",
+          "Place the pan over low heat and add the butter. Let it melt and coat the bottom evenly.",
+        focus: "Warm the pan gently without browning the butter.",
+        tips: [
+          "Low heat prevents the butter from burning.",
+          "Swirl the pan to coat the entire surface.",
+        ],
+        heatLevel: "low",
+        donenessNotes: "Butter should be melted and slightly foamy, not browned.",
+        ingredientIds: ["butter"],
+        timerHintSec: 60,
+      },
+      {
+        id: "step-4",
+        title: "Pour eggs and cook slowly",
+        instruction:
+          "Pour in the egg mixture and let it set slightly, then gently stir with a spatula to create soft curds.",
+        focus: "Form tender curds without browning the eggs.",
         tips: [
           "Pull the pan off the heat briefly if the eggs firm up too fast.",
           "Use a spatula to scrape the edges toward the center.",
         ],
         heatLevel: "low",
         donenessNotes:
-          "The center should still look slightly glossy before folding.",
-        ingredientIds: ["butter", "egg"],
+          "The center should still look slightly glossy and underdone.",
+        ingredientIds: ["egg"],
         timerHintSec: 90,
       },
       {
-        id: "step-3",
-        title: "Fold and serve",
+        id: "step-5",
+        title: "Fold the omelette",
         instruction:
-          "Fold the omelette into thirds, then slide it onto a warm plate.",
-        focus: "Finish the omelette before it turns dry.",
+          "Tilt the pan forward and use your spatula to fold the omelette into thirds or in half.",
+        focus: "Create a neat fold while the center is still slightly soft.",
         tips: [
-          "Tilt the pan forward to help the fold.",
+          "Work quickly before the eggs set completely.",
+          "A loose fold is fine—don't overthink it.",
+        ],
+        heatLevel: "off",
+        donenessNotes: "The omelette should look folded but still soft inside.",
+        ingredientIds: ["egg"],
+        timerHintSec: 30,
+      },
+      {
+        id: "step-6",
+        title: "Transfer to plate",
+        instruction:
+          "Slide the folded omelette onto a warm plate and serve immediately.",
+        focus: "Serve while hot and the center is still creamy.",
+        tips: [
+          "Use the pan's momentum to help slide it out.",
           "Serve immediately for the best texture.",
         ],
         heatLevel: "off",
@@ -139,41 +184,101 @@ const presetRecipeSeeds = [
     steps: [
       {
         id: "step-1",
-        title: "Rinse the rice",
+        title: "Gather and rinse rice",
         instruction:
-          "Rinse the rice until the water runs mostly clear, then drain well.",
-        focus: "Wash away excess starch so the grains stay fluffy.",
+          "Measure the rice and place it in a fine-mesh strainer. Rinse under cold water until the water runs mostly clear.",
+        focus: "Remove excess starch so the grains stay fluffy and separate.",
         tips: [
-          "Swirl gently so the grains do not break.",
-          "Drain thoroughly before the rice hits the butter.",
+          "Use your hand to gently swirl the rice—don't crush the grains.",
+          "Rinse 2 to 3 times until water is no longer cloudy.",
         ],
         heatLevel: "off",
         donenessNotes:
-          "The grains should look clean and separate after rinsing.",
+          "The grains should look clean and the water should run clear.",
         ingredientIds: ["rice", "water"],
         timerHintSec: 0,
       },
       {
         id: "step-2",
-        title: "Cook with butter",
+        title: "Drain rice thoroughly",
         instruction:
-          "Warm the butter, bloom the garlic for 30 seconds, then simmer the rice with water and salt.",
-        focus: "Coat the grains with fat and keep the simmer gentle.",
+          "Let the rice drain completely in the strainer, shaking off excess water.",
+        focus: "Remove as much water as possible before cooking.",
         tips: [
-          "Do not let the garlic brown or it will taste bitter.",
-          "Once the lid is on, keep the heat low and avoid stirring.",
+          "Shake the strainer gently to release trapped water.",
+          "Wet rice won't toast properly in the butter.",
         ],
-        heatLevel: "medium",
-        donenessNotes: "The liquid should barely bubble once covered.",
-        ingredientIds: ["butter", "garlic", "rice", "water", "salt"],
-        timerHintSec: 900,
+        heatLevel: "off",
+        donenessNotes: "Rice should be damp but not dripping.",
+        ingredientIds: ["rice"],
+        timerHintSec: 120,
       },
       {
         id: "step-3",
-        title: "Rest before serving",
+        title: "Melt butter",
         instruction:
-          "Turn off the heat, rest the rice covered for 5 minutes, then fluff with a fork.",
-        focus: "Let the steam finish the rice before serving.",
+          "Place a small saucepan over medium heat and add the butter. Let it melt completely.",
+        focus: "Warm the butter without letting it brown.",
+        tips: [
+          "Medium heat gives you control—don't rush it.",
+          "The butter should coat the bottom of the pan.",
+        ],
+        heatLevel: "medium",
+        donenessNotes: "Butter should be fully melted and slightly foamy.",
+        ingredientIds: ["butter"],
+        timerHintSec: 60,
+      },
+      {
+        id: "step-4",
+        title: "Sauté garlic",
+        instruction:
+          "Add the minced garlic to the melted butter and cook for 30 seconds until fragrant.",
+        focus: "Release the garlic aroma without burning it.",
+        tips: [
+          "Do not let the garlic brown or it will taste bitter.",
+          "Stir constantly to prevent burning.",
+        ],
+        heatLevel: "medium",
+        donenessNotes: "Garlic should smell fragrant but remain pale.",
+        ingredientIds: ["garlic", "butter"],
+        timerHintSec: 30,
+      },
+      {
+        id: "step-5",
+        title: "Toast rice",
+        instruction:
+          "Add the drained rice to the pan and stir to coat each grain with butter. Toast for 1 to 2 minutes.",
+        focus: "Coat the grains with fat to add flavor and prevent sticking.",
+        tips: [
+          "Stir gently to avoid breaking the grains.",
+          "The rice will look slightly translucent around the edges.",
+        ],
+        heatLevel: "medium",
+        donenessNotes: "Rice should be coated and slightly fragrant.",
+        ingredientIds: ["rice", "butter"],
+        timerHintSec: 90,
+      },
+      {
+        id: "step-6",
+        title: "Add water and simmer",
+        instruction:
+          "Pour in the water and salt, stir once, then cover and reduce heat to low. Simmer for 15 minutes without lifting the lid.",
+        focus: "Let the rice steam undisturbed to cook evenly.",
+        tips: [
+          "Resist the urge to peek—the steam is doing the work.",
+          "Once the lid is on, keep the heat low and avoid stirring.",
+        ],
+        heatLevel: "low",
+        donenessNotes: "The liquid should be fully absorbed.",
+        ingredientIds: ["water", "salt", "rice"],
+        timerHintSec: 900,
+      },
+      {
+        id: "step-7",
+        title: "Rest and fluff",
+        instruction:
+          "Turn off the heat and let the rice rest covered for 5 minutes. Then fluff with a fork and serve.",
+        focus: "Let the steam finish cooking the center of the rice.",
         tips: [
           "Keep the lid closed during the rest so trapped steam can finish the center.",
           "Fluff from the bottom up to avoid crushing the grains.",
