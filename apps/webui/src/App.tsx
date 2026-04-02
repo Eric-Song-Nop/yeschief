@@ -439,13 +439,10 @@ export function App() {
       />
     ) : (
       <RecipeSelection
-        canJoinVoice={Boolean(sessionResult)}
         createError={createError}
         isCreatingSession={isCreatingSession}
-        isJoiningVoice={isJoiningVoice}
         isLoadingRecipes={isLoadingRecipes}
         onCreateSession={() => void handleCreateSession()}
-        onJoinVoice={() => void handleJoinVoice()}
         onSelectRecipe={setSelectedRecipeId}
         recipes={recipes}
         recipesError={recipesError}

@@ -1,19 +1,15 @@
 import type { RecipeSummary } from "@yes-chief/shared"
-import { CheckCircle2, LoaderCircle, Soup } from "lucide-react"
+import { CheckCircle2, LoaderCircle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 
 type RecipeSelectionProps = {
-  canJoinVoice: boolean
   createError?: string
   isCreatingSession: boolean
-  isJoiningVoice: boolean
   isLoadingRecipes: boolean
   onCreateSession: () => void
-  onJoinVoice: () => void
   onSelectRecipe: (recipeId: string) => void
   recipes: RecipeSummary[]
   recipesError?: string
@@ -21,51 +17,47 @@ type RecipeSelectionProps = {
 }
 
 export function RecipeSelection({
-  canJoinVoice,
   createError = "",
   isCreatingSession,
-  isJoiningVoice,
   isLoadingRecipes,
   onCreateSession,
-  onJoinVoice,
   onSelectRecipe,
   recipes,
   recipesError = "",
   selectedRecipeId,
 }: RecipeSelectionProps) {
   return (
-    <Card className="border-border/70 bg-card/96 shadow-lg shadow-primary/5">
-      <CardHeader className="gap-3">
-        <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-          <Soup className="size-3.5" />
-          Discovery
-        </div>
-        <CardTitle className="text-2xl md:text-3xl">
-          先选一道菜，再接通语音 tutor
-        </CardTitle>
-      </CardHeader>
+    <div className="mx-auto max-w-4xl space-y-16 py-12">
+      {/* Hero Header */}
+      <div className="space-y-4">
+        <h1 className="text-balance text-6xl font-light leading-[1.1] tracking-tight text-foreground sm:text-7xl md:text-8xl">
+          想吃什么？
+        </h1>
+        <p className="text-xl font-medium text-muted-foreground/60 md:text-2xl">
+          选择一个菜谱，让 Yes Chief 带你下厨。
+        </p>
+      </div>
 
-      <CardContent className="space-y-5">
+      <div className="space-y-12">
         {recipesError ? (
-          <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+          <div className="rounded-3xl border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive">
             {recipesError}
           </div>
         ) : null}
 
         <div
           aria-label="选择菜谱"
-          className="grid gap-3 md:grid-cols-2"
+          className="grid gap-6 sm:grid-cols-2"
           role="radiogroup"
         >
           {isLoadingRecipes
             ? Array.from({ length: 4 }, (_, index) => (
                 <div
-                  className="rounded-3xl border border-border/70 bg-background/85 p-4"
+                  className="rounded-[2.5rem] border border-border/40 bg-background/40 p-8"
                   key={`recipe-skeleton-${index}`}
                 >
-                  <Skeleton className="h-5 w-2/3" />
-                  <Skeleton className="mt-4 h-4 w-1/3" />
-                  <Skeleton className="mt-2 h-4 w-full" />
+                  <Skeleton className="h-8 w-2/3" />
+                  <Skeleton className="mt-6 h-4 w-1/4" />
                 </div>
               ))
             : recipes.map((recipe) => {
@@ -77,77 +69,73 @@ export function RecipeSelection({
                     aria-label={`选择菜谱 ${recipe.title}`}
                     aria-pressed={isSelected}
                     className={cn(
-                      "rounded-3xl border p-4 text-left transition-all outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
+                      "group relative flex flex-col items-start rounded-[2.5rem] p-8 text-left transition-all duration-300 outline-none",
                       isSelected
-                        ? "border-primary/45 bg-primary/8 shadow-md shadow-primary/10"
-                        : "border-border/70 bg-background/85 hover:border-primary/20 hover:bg-primary/[0.04]"
+                        ? "bg-primary/[0.04] ring-1 ring-primary/20"
+                        : "bg-background/40 hover:bg-background/60 hover:ring-1 hover:ring-border/60"
                     )}
                     key={recipe.id}
                     onClick={() => onSelectRecipe(recipe.id)}
                     role="radio"
                     type="button"
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-lg font-medium">
+                    <div className="flex w-full items-start justify-between gap-4">
+                      <div className="space-y-2">
+                        <div
+                          className={cn(
+                            "font-medium transition-all duration-300",
+                            isSelected
+                              ? "text-3xl text-primary md:text-4xl"
+                              : "text-2xl text-foreground md:text-3xl"
+                          )}
+                        >
                           {recipe.title}
                         </div>
-                        <div className="mt-2 text-sm text-muted-foreground">
+                        <div className="text-sm font-semibold uppercase tracking-widest text-muted-foreground/40">
                           共 {recipe.stepCount} 步
                         </div>
                       </div>
                       {isSelected ? (
-                        <CheckCircle2 className="mt-0.5 size-5 text-primary" />
+                        <CheckCircle2 className="h-8 w-8 text-primary/60" />
                       ) : null}
                     </div>
+
+                    {/* Subtle selection indicator */}
+                    {isSelected && (
+                      <div className="absolute -left-1 top-1/2 h-12 w-1 -translate-y-1/2 rounded-full bg-primary" />
+                    )}
                   </button>
                 )
               })}
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="flex flex-col items-center gap-8 pt-8">
           <Button
-            className="min-h-12 text-base"
-            disabled={
-              !selectedRecipeId ||
-              isCreatingSession ||
-              isLoadingRecipes ||
-              isJoiningVoice
-            }
+            className={cn(
+              "h-20 min-w-[280px] rounded-full px-12 text-xl font-medium transition-all active:scale-[0.98]",
+              !selectedRecipeId && "opacity-50 grayscale"
+            )}
+            disabled={!selectedRecipeId || isCreatingSession || isLoadingRecipes}
             onClick={onCreateSession}
+            size="lg"
           >
             {isCreatingSession ? (
               <>
-                <LoaderCircle className="size-4 animate-spin" />
-                正在开始
+                <LoaderCircle className="mr-3 h-6 w-6 animate-spin" />
+                正在为你准备...
               </>
             ) : (
               "开始这道菜"
             )}
           </Button>
-          <Button
-            className="min-h-12 text-base"
-            disabled={!canJoinVoice || isCreatingSession || isJoiningVoice}
-            onClick={onJoinVoice}
-            variant="secondary"
-          >
-            {isJoiningVoice ? (
-              <>
-                <LoaderCircle className="size-4 animate-spin" />
-                正在接通
-              </>
-            ) : (
-              "接通语音指导"
-            )}
-          </Button>
-        </div>
 
-        {createError ? (
-          <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-            {createError}
-          </div>
-        ) : null}
-      </CardContent>
-    </Card>
+          {createError ? (
+            <div className="rounded-2xl border border-destructive/30 bg-destructive/5 px-6 py-3 text-sm text-destructive">
+              {createError}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
   )
 }
