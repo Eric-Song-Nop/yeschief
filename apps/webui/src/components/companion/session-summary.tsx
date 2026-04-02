@@ -22,10 +22,10 @@ export function SessionSummary({ action, summary }: SessionSummaryProps) {
         <Badge>Completed</Badge>
         <div className="space-y-2">
           <CardTitle className="text-3xl md:text-4xl">
-            {summary.recipeTitle} 已完成
+            {summary.recipeTitle} Completed
           </CardTitle>
           <CardDescription>
-            这次做菜已经收口，下面是本轮语音陪伴的完成摘要。
+            This cooking session is complete. Below is a summary of your voice-guided cooking experience.
           </CardDescription>
         </div>
       </CardHeader>
@@ -34,7 +34,7 @@ export function SessionSummary({ action, summary }: SessionSummaryProps) {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="rounded-2xl border border-border/70 bg-muted/25 px-4 py-4">
             <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-              完成时间
+              Completion Time
             </div>
             <div className="mt-2 text-sm text-foreground">
               {summary.completedAt}
@@ -42,10 +42,10 @@ export function SessionSummary({ action, summary }: SessionSummaryProps) {
           </div>
           <div className="rounded-2xl border border-border/70 bg-muted/25 px-4 py-4">
             <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-              最终进度
+              Final Progress
             </div>
             <div className="mt-2 text-sm text-foreground">
-              第 {summary.finalStepIndex + 1} 步 / 共 {summary.totalSteps} 步
+              Step {summary.finalStepIndex + 1} / {summary.totalSteps} steps
             </div>
           </div>
         </div>
@@ -53,7 +53,7 @@ export function SessionSummary({ action, summary }: SessionSummaryProps) {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="rounded-2xl border border-border/70 bg-muted/25 px-4 py-4">
             <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-              已到点计时器
+              Expired Timers
             </div>
             <div className="mt-2 text-2xl font-semibold tracking-tight">
               {summary.expiredTimerCount}
@@ -61,7 +61,7 @@ export function SessionSummary({ action, summary }: SessionSummaryProps) {
           </div>
           <div className="rounded-2xl border border-border/70 bg-muted/25 px-4 py-4">
             <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-              已取消计时器
+              Cancelled Timers
             </div>
             <div className="mt-2 text-2xl font-semibold tracking-tight">
               {summary.cancelledTimerCount}

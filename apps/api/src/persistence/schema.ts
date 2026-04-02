@@ -52,3 +52,14 @@ export const timers = sqliteTable(
   FOREIGN KEY ("sessionId") REFERENCES sessions("id")
 `
 )
+
+export const sessionRoomBindings = sqliteTable(
+  "session_room_bindings",
+  `
+  "sessionId" TEXT PRIMARY KEY NOT NULL,
+  "roomName" TEXT NOT NULL UNIQUE,
+  "createdAt" TEXT NOT NULL,
+  "updatedAt" TEXT NOT NULL,
+  FOREIGN KEY ("sessionId") REFERENCES sessions("id")
+`
+)

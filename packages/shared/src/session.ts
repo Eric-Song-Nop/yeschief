@@ -101,9 +101,16 @@ export type ListSessionsResult = {
   sessions: SessionRecoveryItem[]
 }
 
-export type ConnectSessionResult = {
+export type SessionRoomBinding = {
   sessionId: string
   roomName: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type ConnectSessionResult = {
+  sessionId: string
+  binding: SessionRoomBinding
   participantToken: string
   serverUrl: string
 }

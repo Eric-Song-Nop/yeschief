@@ -4,6 +4,10 @@ import type {
   DeleteSessionRoomResult,
 } from "@yes-chief/shared"
 import { buildApp } from "../src/app"
+import {
+  getSessionRoomBinding,
+  upsertSessionRoomBinding,
+} from "../src/services/session-room-binding"
 import { setRoomServiceClientFactoryForTests } from "../src/services/livekit-connect"
 import { withTestDatabase } from "./test-db"
 
@@ -52,12 +56,13 @@ describe("session room cleanup route", () => {
     })
   })
 
-  it("deletes the existing session room and returns cleanup metadata", async () => {
+  it("deletes the persisted binding room and returns cleanup metadata", async () => {
     await withTestDatabase(async () => {
       await withLiveKitEnv(async () => {
         const app = buildApp()
         const listRoomsCalls: string[][] = []
         const deleteRoomCalls: string[] = []
+        const replacementRoomName = "replacement-room"
 
         setRoomServiceClientFactoryForTests(() => ({
           async createRoom() {
@@ -92,6 +97,12 @@ describe("session room cleanup route", () => {
 
           const created = (await createResponse.json()) as CreateSessionResult
           const sessionId = created.session.sessionId
+
+          upsertSessionRoomBinding({
+            roomName: replacementRoomName,
+            sessionId,
+          })
+
           const cleanupResponse = await app.handle(
             new Request(`http://localhost/sessions/${sessionId}/room`, {
               method: "DELETE",
@@ -103,13 +114,73 @@ describe("session room cleanup route", () => {
           const result =
             (await cleanupResponse.json()) as DeleteSessionRoomResult
 
-          expect(listRoomsCalls).toEqual([[sessionId]])
-          expect(deleteRoomCalls).toEqual([sessionId])
+          expect(listRoomsCalls).toEqual([[replacementRoomName]])
+          expect(deleteRoomCalls).toEqual([replacementRoomName])
           expect(result).toEqual({
             cleanup: "deleted",
-            roomName: sessionId,
+            roomName: replacementRoomName,
             sessionId,
           })
+          expect(getSessionRoomBinding(sessionId)).toBeNull()
+        } finally {
+          setRoomServiceClientFactoryForTests(null)
+        }
+      })
+    })
+  })
+
+  it("returns already_missing after clearing a replacement binding", async () => {
+    await withTestDatabase(async () => {
+      await withLiveKitEnv(async () => {
+        const app = buildApp()
+        const replacementRoomName = "replacement-room"
+
+        setRoomServiceClientFactoryForTests(() => ({
+          async createRoom() {
+            throw new Error("createRoom should not be called during cleanup")
+          },
+          async deleteRoom() {},
+          async listRooms() {
+            return []
+          },
+        }))
+
+        try {
+          const createResponse = await app.handle(
+            new Request("http://localhost/sessions", {
+              body: JSON.stringify({ recipeId: "recipe-garlic-rice" }),
+              headers: {
+                "content-type": "application/json",
+              },
+              method: "POST",
+            })
+          )
+
+          expect(createResponse.status).toBe(201)
+
+          const created = (await createResponse.json()) as CreateSessionResult
+          const sessionId = created.session.sessionId
+
+          upsertSessionRoomBinding({
+            roomName: replacementRoomName,
+            sessionId,
+          })
+
+          const cleanupResponse = await app.handle(
+            new Request(`http://localhost/sessions/${sessionId}/room`, {
+              method: "DELETE",
+            })
+          )
+
+          expect(cleanupResponse.status).toBe(200)
+          expect(
+            (await cleanupResponse.json()) as DeleteSessionRoomResult
+          ).toEqual({
+            cleanup: "already_missing",
+            roomName: replacementRoomName,
+            sessionId,
+          })
+          expect(getSessionRoomBinding(sessionId)).toBeNull()
         } finally {
           setRoomServiceClientFactoryForTests(null)
         }

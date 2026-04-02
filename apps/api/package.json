@@ -4,6 +4,7 @@
   "scripts": {
     "test": "bun test",
     "dev": "bun run --watch src/index.ts",
+    "start": "bun src/index.ts",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint --config ../../.oxlintrc.json .",
     "lint:fix": "oxlint --config ../../.oxlintrc.json --fix .",

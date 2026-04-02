@@ -31,13 +31,13 @@ export function RecipeSelection({
       {/* Hero Header */}
       <div className="space-y-4">
         <div className="text-xs font-semibold uppercase tracking-[0.22em] text-primary/70">
-          开始新会话
+          Start New Session
         </div>
         <h1 className="text-balance text-6xl font-light leading-[1.1] tracking-tight text-foreground sm:text-7xl md:text-8xl">
-          想吃什么？
+          What would you like to cook?
         </h1>
         <p className="text-xl font-medium text-muted-foreground/60 md:text-2xl">
-          选择一个菜谱，或者从下方继续之前的会话。
+          Choose a recipe, or continue a previous session from below.
         </p>
       </div>
 
@@ -49,7 +49,7 @@ export function RecipeSelection({
         ) : null}
 
         <div
-          aria-label="选择菜谱"
+          aria-label="Select Recipe"
           className="grid gap-6 sm:grid-cols-2"
           role="radiogroup"
         >
@@ -69,7 +69,7 @@ export function RecipeSelection({
                 return (
                   <button
                     aria-checked={isSelected}
-                    aria-label={`选择菜谱 ${recipe.title}`}
+                    aria-label={`Select recipe ${recipe.title}`}
                     aria-pressed={isSelected}
                     className={cn(
                       "group relative flex flex-col items-start rounded-[2.5rem] p-8 text-left transition-all duration-300 outline-none",
@@ -95,7 +95,7 @@ export function RecipeSelection({
                           {recipe.title}
                         </div>
                         <div className="text-sm font-semibold uppercase tracking-widest text-muted-foreground/40">
-                          共 {recipe.stepCount} 步
+                          {recipe.stepCount} steps
                         </div>
                       </div>
                       {isSelected ? (
@@ -125,10 +125,10 @@ export function RecipeSelection({
             {isCreatingSession ? (
               <>
                 <LoaderCircle className="mr-3 h-6 w-6 animate-spin" />
-                正在为你准备...
+                Preparing for you...
               </>
             ) : (
-              "开始这道菜"
+              "Start Cooking"
             )}
           </Button>
 

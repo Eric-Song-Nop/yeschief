@@ -27,9 +27,9 @@ type SessionRecoveryListProps = {
 }
 
 const RECOVERY_STATUS_LABELS: Record<SessionRecoveryItem["status"], string> = {
-  active: "进行中",
-  completed: "已完成",
-  paused: "已暂停",
+  active: "In Progress",
+  completed: "Completed",
+  paused: "Paused",
 }
 
 const formatUpdatedAt = (updatedAt: string) => {
@@ -42,18 +42,18 @@ const formatUpdatedAt = (updatedAt: string) => {
   const now = new Date()
   const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / 60000)
 
-  if (diffInMinutes < 1) return "刚刚"
-  if (diffInMinutes < 60) return `${diffInMinutes} 分钟前`
-  if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)} 小时前`
+  if (diffInMinutes < 1) return "Just now"
+  if (diffInMinutes < 60) return `${diffInMinutes} minutes ago`
+  if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)} hours ago`
 
-  return new Intl.DateTimeFormat("zh-CN", {
+  return new Intl.DateTimeFormat("en-US", {
     day: "numeric",
     month: "short",
   }).format(date)
 }
 
 const getRecoveryActionLabel = (session: SessionRecoveryItem) =>
-  session.status === "completed" ? "查看总结" : "继续烹饪"
+  session.status === "completed" ? "View Summary" : "Continue Cooking"
 
 export function SessionRecoveryList({
   error = "",
@@ -70,10 +70,10 @@ export function SessionRecoveryList({
         </div>
         <div className="space-y-1">
           <h2 className="text-2xl font-semibold tracking-tight text-foreground">
-            最近的会话
+            Recent Sessions
           </h2>
           <p className="text-sm text-muted-foreground">
-            快速恢复之前的烹饪进度
+            Quickly resume your cooking progress
           </p>
         </div>
       </div>
@@ -116,9 +116,9 @@ export function SessionRecoveryList({
                       {session.recipeTitle}
                     </CardTitle>
                     <CardDescription className="flex items-center gap-2 font-medium">
-                      <span>第 {session.currentStepIndex + 1} 步</span>
+                      <span>Step {session.currentStepIndex + 1}</span>
                       <span className="h-1 w-1 rounded-full bg-muted-foreground/30" />
-                      <span>共 {session.totalSteps} 步</span>
+                      <span>of {session.totalSteps} steps</span>
                     </CardDescription>
                   </div>
                   <div
@@ -140,7 +140,7 @@ export function SessionRecoveryList({
                 <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
                   <div className="flex items-center gap-1.5">
                     <Clock className="h-3.5 w-3.5" />
-                    <span>上次活动: {formatUpdatedAt(session.updatedAt)}</span>
+                    <span>Last active: {formatUpdatedAt(session.updatedAt)}</span>
                   </div>
                 </div>
 
@@ -173,10 +173,10 @@ export function SessionRecoveryList({
             <History className="h-8 w-8" />
           </div>
           <h3 className="text-lg font-medium text-foreground/60">
-            还没有历史会话
+            No history yet
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            你开始做菜后，进度会出现在这里。
+            Your cooking sessions will appear here once you start.
           </p>
         </div>
       )}

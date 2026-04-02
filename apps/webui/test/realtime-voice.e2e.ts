@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
 const API_BASE_URL = "http://127.0.0.1:3300"
-const emptyTimerStateText = "无活跃计时器"
+const emptyTimerStateText = "No active timers"
 const missingLiveKitEnv = (process.env.PLAYWRIGHT_MISSING_LIVEKIT_ENV ?? "")
   .split(",")
   .filter((value) => value.length > 0)
@@ -13,7 +13,10 @@ type CreateSessionResponse = {
 }
 
 type ConnectSessionResponse = {
-  roomName: string
+  binding: {
+    roomName: string
+    sessionId: string
+  }
   sessionId: string
 }
 
@@ -33,9 +36,11 @@ const waitForPoliteAnnouncement = async (liveRegion: Locator, text: string) => {
 
 const expectDiscoveryStage = async (page: Page) => {
   await expect(
-    page.getByRole("heading", { name: "恢复已有 session" })
+    page.getByRole("heading", { name: "Recent Sessions" })
   ).toBeVisible()
-  await expect(page.getByRole("heading", { name: "想吃什么？" })).toBeVisible()
+  await expect(
+    page.getByRole("heading", { name: "What would you like to cook?" })
+  ).toBeVisible()
 }
 
 const createSessionFromDiscovery = async (
@@ -46,7 +51,9 @@ const createSessionFromDiscovery = async (
 
   const recipeChoices = page.getByRole("radio")
 
-  await expect(page.getByRole("radiogroup", { name: "选择菜谱" })).toBeVisible()
+  await expect(
+    page.getByRole("radiogroup", { name: "Select Recipe" })
+  ).toBeVisible()
   await expect(recipeChoices.first()).toBeVisible()
   await recipeChoices.first().click()
 
@@ -58,7 +65,7 @@ const createSessionFromDiscovery = async (
 
   await page
     .getByRole("button", {
-      name: "开始这道菜",
+      name: "Start Cooking",
     })
     .click()
 
@@ -66,9 +73,13 @@ const createSessionFromDiscovery = async (
   const createPayload = (await createResponse.json()) as CreateSessionResponse
 
   expect(createResponse.ok()).toBeTruthy()
-  await waitForPoliteAnnouncement(politeLiveRegion, "session 已创建")
-  await expect(page.getByText("进行中", { exact: true }).first()).toBeVisible()
-  await expect(page.getByText("连接状态", { exact: true })).toBeVisible()
+  await waitForPoliteAnnouncement(politeLiveRegion, "Session created")
+  await expect(
+    page.getByText("In Progress", { exact: true }).first()
+  ).toBeVisible()
+  await expect(
+    page.getByText("Connection Status", { exact: true })
+  ).toBeVisible()
 
   return createPayload.session.sessionId
 }
@@ -87,7 +98,7 @@ const joinVoiceForSession = async (
 
   await page
     .getByRole("button", {
-      name: "接通语音指导",
+      name: "Connect voice guidance",
     })
     .click()
 
@@ -97,18 +108,22 @@ const joinVoiceForSession = async (
 
   expect(connectResponse.ok()).toBeTruthy()
   expect(connectPayload.sessionId).toBe(sessionId)
-  expect(connectPayload.roomName).toBe(sessionId)
+  expect(connectPayload.binding.sessionId).toBe(sessionId)
+  expect(connectPayload.binding.roomName.length).toBeGreaterThan(0)
 
-  await waitForPoliteAnnouncement(politeLiveRegion, "正在连接语音指导")
+  await waitForPoliteAnnouncement(
+    politeLiveRegion,
+    "Connecting to voice guidance"
+  )
   await expect(
-    mainPanel.getByText("麦克风已开启 • 浏览器音频已就绪", {
+    mainPanel.getByText("Microphone on • Browser audio ready", {
       exact: true,
     })
   ).toBeVisible({
     timeout: 30_000,
   })
   await expect(
-    mainPanel.getByText("已加入当前会话", { exact: true }).first()
+    mainPanel.getByText("Joined current session", { exact: true }).first()
   ).toBeVisible({
     timeout: 30_000,
   })
@@ -131,19 +146,24 @@ test("voice-first companion covers create join timer lifecycle, summary, and new
 
   await expect(
     page.getByRole("heading", {
-      name: "想吃什么？",
+      name: "What would you like to cook?",
     })
   ).toBeVisible()
   await expect(politeLiveRegion).toHaveCount(1)
   await expect(assertiveLiveRegion).toHaveCount(1)
 
-  const firstSessionId = await createSessionFromDiscovery(page, politeLiveRegion)
-  await expect(page.getByText("连接状态", { exact: true })).toBeVisible()
-  await expect(page.getByText("结束并返回重选", { exact: true })).toBeVisible()
+  const firstSessionId = await createSessionFromDiscovery(
+    page,
+    politeLiveRegion
+  )
+  await expect(
+    page.getByText("Connection Status", { exact: true })
+  ).toBeVisible()
+  await expect(page.getByText("End and return", { exact: true })).toBeVisible()
 
   await joinVoiceForSession(page, mainPanel, politeLiveRegion, firstSessionId)
 
-  const voiceActivityVisualizer = page.getByLabel("tutor 语音活动")
+  const voiceActivityVisualizer = page.getByLabel("Tutor Voice Activity")
   await expect(voiceActivityVisualizer).toBeVisible({
     timeout: 30_000,
   })
@@ -155,7 +175,8 @@ test("voice-first companion covers create join timer lifecycle, summary, and new
   const activeEndSessionResponsePromise = page.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&
-      new URL(response.url()).pathname === `/sessions/${firstSessionId}/commands`
+      new URL(response.url()).pathname ===
+        `/sessions/${firstSessionId}/commands`
   )
   const activeCleanupResponsePromise = page.waitForResponse(
     (response) =>
@@ -165,7 +186,7 @@ test("voice-first companion covers create join timer lifecycle, summary, and new
 
   await page
     .getByRole("button", {
-      name: "结束并返回重选",
+      name: "End and return",
     })
     .click()
 
@@ -198,7 +219,7 @@ test("voice-first companion covers create join timer lifecycle, summary, and new
   expect(createTimerResponse.ok()).toBeTruthy()
   expect(timerId).toBeTruthy()
 
-  await waitForPoliteAnnouncement(politeLiveRegion, "已新建计时器")
+  await waitForPoliteAnnouncement(politeLiveRegion, "Timer created")
   await expect(page.getByText("焖饭", { exact: true }).first()).toBeVisible({
     timeout: 10_000,
   })
@@ -214,7 +235,7 @@ test("voice-first companion covers create join timer lifecycle, summary, and new
   )
 
   expect(cancelTimerResponse.ok()).toBeTruthy()
-  await waitForPoliteAnnouncement(politeLiveRegion, "已取消计时器")
+  await waitForPoliteAnnouncement(politeLiveRegion, "Timer cancelled")
   await expect(page.getByText(emptyTimerStateText)).toBeVisible({
     timeout: 10_000,
   })
@@ -230,14 +251,16 @@ test("voice-first companion covers create join timer lifecycle, summary, and new
 
   expect(endSessionResponse.ok()).toBeTruthy()
 
-  await expect(page.getByText("Garlic Butter Rice 已完成")).toBeVisible({
+  await expect(page.getByText("Garlic Butter Rice Completed")).toBeVisible({
     timeout: 10_000,
   })
-  await expect(page.getByText("完成时间", { exact: true })).toBeVisible()
-  await expect(page.getByText("最终进度", { exact: true })).toBeVisible()
-  await expect(page.getByText("已到点计时器", { exact: true })).toBeVisible()
-  await expect(page.getByText("已取消计时器", { exact: true }).first()).toBeVisible()
-  await expect(page.getByText("返回重选", { exact: true })).toBeVisible()
+  await expect(page.getByText("Completion Time", { exact: true })).toBeVisible()
+  await expect(page.getByText("Final Progress", { exact: true })).toBeVisible()
+  await expect(page.getByText("Expired Timers", { exact: true })).toBeVisible()
+  await expect(
+    page.getByText("Cancelled Timers", { exact: true }).first()
+  ).toBeVisible()
+  await expect(page.getByText("Return", { exact: true })).toBeVisible()
 
   const completedCleanupResponsePromise = page.waitForResponse(
     (response) =>
@@ -247,14 +270,17 @@ test("voice-first companion covers create join timer lifecycle, summary, and new
 
   await page
     .getByRole("button", {
-      name: "返回重选",
+      name: "Return",
     })
     .click()
 
   expect((await completedCleanupResponsePromise).ok()).toBeTruthy()
   await expectDiscoveryStage(page)
 
-  const thirdSessionId = await createSessionFromDiscovery(page, politeLiveRegion)
+  const thirdSessionId = await createSessionFromDiscovery(
+    page,
+    politeLiveRegion
+  )
 
   expect(thirdSessionId).not.toBe(secondSessionId)
 })

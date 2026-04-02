@@ -1,30 +1,30 @@
 # Yes Chief
 
-`Yes Chief` 是一个基于 `LiveKit` 和 `LiveKit Agents` 的实时语音烹饪导师 Web 应用。
+`Yes Chief` is a real-time voice cooking tutor web application built on `LiveKit` and `LiveKit Agents`.
 
-它的核心不是“菜谱管理系统”，而是“做菜过程中始终在线、可被打断、能继续引导你的语音教练”。
+Its core is not a "recipe management system," but a "voice coach that stays online during cooking, can be interrupted, and continues to guide you."
 
-## 核心想法
+## Core Concept
 
-用户进入一个烹饪会话后，主要通过语音与 agent 交互：
+After entering a cooking session, users interact with the agent primarily through voice:
 
-- agent 主动讲解当前步骤
-- 用户可以随时打断提问
-- 用户和agent可以用语音推进步骤、创建计时器、暂停或结束会话
-- 页面只负责展示当前步骤、计时器和总结，不依赖按钮驱动流程
+- The agent proactively explains the current step
+- Users can interrupt with questions at any time
+- Users and the agent can advance steps, create timers, pause, or end sessions via voice
+- The page only displays the current step, timers, and summary—no button-driven workflow
 
-首版 MVP 只支持 `preset recipes only`：
+The first MVP only supports `preset recipes only`:
 
-- 不做账号系统
-- 不做 recipe upload
-- 不做自动解析菜谱
-- 不做复杂后台
+- No account system
+- No recipe upload
+- No automatic recipe parsing
+- No complex backend
 
-这让实现重点集中在“实时语音 tutoring 体验”而不是内容生产链路。
+This keeps the implementation focused on the "real-time voice tutoring experience" rather than the content production pipeline.
 
-## 架构原则
+## Architecture Principles
 
-项目采用三应用架构：
+The project adopts a three-app architecture:
 
 ```text
 apps/
@@ -35,13 +35,13 @@ packages/
   shared/
 ```
 
-职责边界非常明确：
+Responsibilities are clearly separated:
 
-- `webui`：语音入口和辅助展示层
-- `api`：业务真相源
-- `agent`：实时语音执行层
+- `webui`: Voice entry point and auxiliary display layer
+- `api`: Source of business truth
+- `agent`: Real-time voice execution layer
 
-核心数据流：
+Core data flow:
 
 ```text
 User mic -> WebUI -> LiveKit Room -> Agent
@@ -51,58 +51,99 @@ WebUI -> API -> SQLite
 Agent -> API -> SQLite
 ```
 
-这套划分的目的很直接：
+The purpose of this separation:
 
-- 避免把实时语音、业务状态和持久化耦合在一起
-- 保证 session、step、timer 的权威状态统一落在 `api`
-- 让 `agent` 专注于“现在该对用户说什么”
+- Avoid coupling real-time voice, business state, and persistence together
+- Ensure authoritative state for sessions, steps, and timers resides in `api`
+- Let `agent` focus on "what to say to the user now"
 
-## MVP 交互模型
+## MVP Interaction Model
 
-一次会话的理想体验如下：
+The ideal session experience:
 
-1. 用户打开 Web 页面并授权麦克风。
-2. `webui` 创建 session，加入对应的 `LiveKit room`。
-3. `agent` 进入房间后读取当前 `SessionSnapshot`，开始语音引导。
-4. 用户一边做菜，一边通过语音提问、汇报进度或控制计时器。
-5. `agent` 只在需要改变状态时调用 `api`，普通问答直接基于快照回答。
-6. 会话结束后，`api` 生成并持久化一份 summary，供页面展示。
+1. User opens the web page and authorizes the microphone.
+2. `webui` creates a session and joins the corresponding `LiveKit room`.
+3. `agent` enters the room, reads the current `SessionSnapshot`, and begins voice guidance.
+4. User cooks while asking questions, reporting progress, or controlling timers via voice.
+5. `agent` only calls `api` when state changes are needed; regular Q&A is based on the snapshot.
+6. After the session ends, `api` generates and persists a summary for the page to display.
 
-这里有两个关键约束：
+Two key constraints:
 
-- 业务状态变化只能通过 `api` 命令完成
-- 自然对话本身不应该让 session 状态漂移
+- Business state changes can only be made through `api` commands
+- Natural conversation itself should not cause session state drift
 
-## 为什么这样设计
+## Why This Design
 
-这个项目的重点不是把所有能力都做出来，而是用最小但完整的系统证明以下几点：
+The focus of this project is not to implement all capabilities, but to prove the following with a minimal yet complete system:
 
-- 语音优先的人机协作流程是成立的
-- `LiveKit + LiveKit Agents` 适合承载实时烹饪导师场景
-- `snapshot + event log` 足够支撑 MVP，而不需要引入更重的 event sourcing
-- `polling` 对首版 UI 状态同步已经足够稳定且简单
+- Voice-first human-machine collaboration workflows are viable
+- `LiveKit + LiveKit Agents` is suitable for real-time cooking tutor scenarios
+- `snapshot + event log` is sufficient for MVP without heavier event sourcing
+- `polling` is stable and simple enough for first-version UI state sync
 
-换句话说，`Yes Chief` 的核心价值是：
+In other words, the core value of `Yes Chief` is:
 
-`一个以实时语音为中心、以 API 为业务真相源、以 Web 页面为辅助视图的烹饪指导系统。`
+`A cooking guidance system centered on real-time voice, with API as the source of business truth and web pages as auxiliary views.`
 
-## 当前设计范围
+## Current Design Scope
 
-技术选型已经明确：
+Tech stack is set:
 
-- Monorepo：`bun workspaces`
-- WebUI：`React + Vite + Tailwind CSS + ShadcnUI`
-- API：`Elysia`
-- Database：`SQLite + Drizzle`
-- Agent：`TypeScript + @livekit/agents`
-- Shared contracts：`packages/shared`
-- Tooling：`oxlint + oxfmt`
+- Monorepo: `bun workspaces`
+- WebUI: `React + Vite + Tailwind CSS + ShadcnUI`
+- API: `Elysia`
+- Database: `SQLite + Drizzle`
+- Agent: `TypeScript + @livekit/agents`
+- Shared contracts: `packages/shared`
+- Tooling: `oxlint + oxfmt`
 
-补充约束：
+Additional constraints:
 
-- 前端不引入 `React Router`
-- `zod` 仅用于 agent tool 参数 schema
-- 所有环境变量统一放在根 `.env`
-- 本地开发入口统一为根目录 `bun run dev`
-- Agent 首次运行前先在根目录执行 `bun run agent:download-files`
-- 最终部署入口目标是 `docker compose`
+- Frontend does not use `React Router`
+- `zod` is only used for agent tool parameter schemas
+- All environment variables are in the root `.env`
+- Local development entry point is `bun run dev` in the root directory
+- Before first agent run, execute `bun run agent:download-files` in the root directory
+- Final deployment target is `docker compose`
+
+## Docker Compose Quick Start
+
+For interview submission and evaluation, the project can now be started with Docker Compose.
+
+Run from the repository root:
+
+```bash
+cp ".env.example" ".env"
+```
+
+Then edit `.env` and fill in:
+
+- `LIVEKIT_URL`
+- `LIVEKIT_API_KEY`
+- `LIVEKIT_API_SECRET`
+
+Start the project with:
+
+```bash
+docker compose up --build
+```
+
+If you want to start it in detached mode:
+
+```bash
+docker compose up --build -d
+```
+
+Then open `http://localhost:8080`.
+
+Useful endpoints:
+
+- `http://localhost:8080` for the web UI
+- `http://localhost:3000/health` for the API health check
+
+Notes:
+
+- The repository does not bundle a self-hosted `LiveKit` stack. Use your own LiveKit Cloud or existing LiveKit deployment credentials.
+- The default compose setup persists SQLite data in a Docker volume.
+- The first `agent` image build downloads voice runtime files, so the initial build takes longer than subsequent runs.

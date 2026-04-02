@@ -1,4 +1,9 @@
-import { expect, test, type Locator, type Page } from "@playwright/test"
+import {
+  expect,
+  test,
+  type APIRequestContext,
+  type Locator,
+} from "@playwright/test"
 
 const API_BASE_URL = "http://127.0.0.1:3300"
 const missingLiveKitEnv = (process.env.PLAYWRIGHT_MISSING_LIVEKIT_ENV ?? "")
@@ -13,8 +18,24 @@ type CreateSessionResponse = {
 }
 
 type ConnectSessionResponse = {
+  binding: {
+    roomName: string
+    sessionId: string
+  }
+  sessionId: string
+}
+
+type DeleteSessionRoomResponse = {
+  cleanup: "already_missing" | "deleted"
   roomName: string
   sessionId: string
+}
+
+type GetSessionResponse = {
+  session: {
+    recipeTitle: string
+    sessionId: string
+  }
 }
 
 const waitForPoliteAnnouncement = async (liveRegion: Locator, text: string) => {
@@ -25,8 +46,8 @@ const waitForPoliteAnnouncement = async (liveRegion: Locator, text: string) => {
     .toContain(text)
 }
 
-const createSessionViaApi = async (page: Page) => {
-  const response = await page.request.post(`${API_BASE_URL}/sessions`, {
+const createSessionViaApi = async (request: APIRequestContext) => {
+  const response = await request.post(`${API_BASE_URL}/sessions`, {
     data: {
       recipeId: "recipe-garlic-rice",
     },
@@ -39,46 +60,47 @@ const createSessionViaApi = async (page: Page) => {
 
 test("recovery discovery can restore the same session after page.reload", async ({
   page,
+  request,
 }) => {
-  test.skip(
-    missingLiveKitEnv.length > 0,
-    `Missing LiveKit env: ${missingLiveKitEnv.join(", ")}`
-  )
-
   const politeLiveRegion = page.locator('.sr-only[aria-live="polite"]')
-  const created = await createSessionViaApi(page)
+  const created = await createSessionViaApi(request)
 
   await page.goto("/")
   await page.reload()
 
   await expect(
-    page.getByRole("heading", { name: "恢复已有 session" })
+    page.getByRole("heading", { name: "Recent Sessions" })
   ).toBeVisible()
-  await expect(page.getByRole("button", { name: "继续烹饪" }).first()).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "Continue Cooking" }).first()
+  ).toBeVisible()
 
   const sessionResponsePromise = page.waitForResponse(
     (response) =>
       response.request().method() === "GET" &&
-      new URL(response.url()).pathname === `/sessions/${created.session.sessionId}`
+      new URL(response.url()).pathname ===
+        `/sessions/${created.session.sessionId}`
   )
 
-  await page.getByRole("button", { name: "继续烹饪" }).first().click()
+  await page.getByRole("button", { name: "Continue Cooking" }).first().click()
 
   expect((await sessionResponsePromise).ok()).toBeTruthy()
-  await waitForPoliteAnnouncement(politeLiveRegion, "已恢复之前的会话")
+  await waitForPoliteAnnouncement(politeLiveRegion, "Restored previous session")
   await expect(page.getByText(created.session.recipeTitle)).toBeVisible()
 })
 
-test.fixme("shows a 重新加入 entry after disconnect recovery exhausts retries", async ({
-  page,
-}) => {
-  await page.goto("/")
-  await page.reload()
-  await expect(page.getByRole("button", { name: "重新加入" })).toBeVisible()
-})
+test.fixme(
+  "shows a Reconnect entry after disconnect recovery exhausts retries",
+  async ({ page }) => {
+    await page.goto("/")
+    await page.reload()
+    await expect(page.getByRole("button", { name: "Reconnect" })).toBeVisible()
+  }
+)
 
-test("repeated connect and end_session keep the same sessionId and completed summary", async ({
+test("room replacement keeps the same sessionId across reconnect and reload", async ({
   page,
+  request,
 }) => {
   test.skip(
     missingLiveKitEnv.length > 0,
@@ -86,51 +108,72 @@ test("repeated connect and end_session keep the same sessionId and completed sum
   )
 
   const politeLiveRegion = page.locator('.sr-only[aria-live="polite"]')
-  const created = await createSessionViaApi(page)
+  const created = await createSessionViaApi(request)
 
-  const firstConnect = await page.request.post(
-    `${API_BASE_URL}/sessions/${created.session.sessionId}/connect`
-  )
-  const secondConnect = await page.request.post(
+  const firstConnect = await request.post(
     `${API_BASE_URL}/sessions/${created.session.sessionId}/connect`
   )
 
   expect(firstConnect.ok()).toBeTruthy()
+
+  const firstPayload = (await firstConnect.json()) as ConnectSessionResponse
+  const firstRoomName = firstPayload.binding.roomName
+
+  expect(firstPayload.sessionId).toBe(created.session.sessionId)
+  expect(firstPayload.binding.sessionId).toBe(created.session.sessionId)
+  expect(firstRoomName.length).toBeGreaterThan(0)
+
+  const cleanupResponse = await request.delete(
+    `${API_BASE_URL}/sessions/${created.session.sessionId}/room`
+  )
+
+  expect(cleanupResponse.ok()).toBeTruthy()
+
+  const cleanupPayload =
+    (await cleanupResponse.json()) as DeleteSessionRoomResponse
+
+  expect(cleanupPayload.sessionId).toBe(created.session.sessionId)
+  expect(cleanupPayload.roomName).toBe(firstRoomName)
+
+  const secondConnect = await request.post(
+    `${API_BASE_URL}/sessions/${created.session.sessionId}/connect`
+  )
+
   expect(secondConnect.ok()).toBeTruthy()
-  expect(((await firstConnect.json()) as ConnectSessionResponse).sessionId).toBe(
-    created.session.sessionId
-  )
-  expect(((await secondConnect.json()) as ConnectSessionResponse).sessionId).toBe(
-    created.session.sessionId
+
+  const secondPayload = (await secondConnect.json()) as ConnectSessionResponse
+  const secondRoomName = secondPayload.binding.roomName
+
+  expect(secondPayload.sessionId).toBe(created.session.sessionId)
+  expect(secondPayload.binding.sessionId).toBe(created.session.sessionId)
+  expect(secondRoomName.length).toBeGreaterThan(0)
+  expect(secondRoomName).not.toBe(firstRoomName)
+
+  const getSessionResponse = await request.get(
+    `${API_BASE_URL}/sessions/${created.session.sessionId}`
   )
 
-  const firstEnd = await page.request.post(
-    `${API_BASE_URL}/sessions/${created.session.sessionId}/commands`,
-    {
-      data: {
-        type: "end_session",
-      },
-    }
-  )
-  const secondEnd = await page.request.post(
-    `${API_BASE_URL}/sessions/${created.session.sessionId}/commands`,
-    {
-      data: {
-        type: "end_session",
-      },
-    }
-  )
-
-  expect(firstEnd.ok()).toBeTruthy()
-  expect(secondEnd.ok()).toBeTruthy()
+  expect(getSessionResponse.ok()).toBeTruthy()
+  expect(
+    ((await getSessionResponse.json()) as GetSessionResponse).session.sessionId
+  ).toBe(created.session.sessionId)
 
   await page.goto("/")
   await page.reload()
 
-  await expect(page.getByRole("button", { name: "查看总结" }).first()).toBeVisible()
-  await page.getByRole("button", { name: "查看总结" }).first().click()
+  const sessionResponsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === "GET" &&
+      new URL(response.url()).pathname ===
+        `/sessions/${created.session.sessionId}`
+  )
 
-  await waitForPoliteAnnouncement(politeLiveRegion, "已恢复完成会话")
+  await page.getByRole("button", { name: "Continue Cooking" }).first().click()
+
+  expect((await sessionResponsePromise).ok()).toBeTruthy()
+  await waitForPoliteAnnouncement(politeLiveRegion, "Restored previous session")
   await expect(page.getByText(created.session.recipeTitle)).toBeVisible()
-  await expect(page.getByText("已完成")).toBeVisible()
+  await expect(
+    page.getByText("Connection Status", { exact: true })
+  ).toBeVisible()
 })

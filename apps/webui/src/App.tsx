@@ -2,6 +2,7 @@ import type {
   SessionSnapshot,
   SessionSummary as SessionSummaryData,
 } from "@yes-chief/shared"
+import { LoaderCircle, Mic } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { ConnectionStatus } from "@/components/companion/connection-status"
@@ -31,7 +32,7 @@ const buildApiRecoveryMessage = (
 ) => {
   const detail = message?.trim() || fallback
 
-  return `请确认 API 与 LiveKit 已启动后重试。 ${detail}`
+  return `Please make sure API and LiveKit are running and try again. ${detail}`
 }
 
 const getLifecycleStatus = (
@@ -42,48 +43,48 @@ const getLifecycleStatus = (
   isJoinedCurrentSession: boolean
 ) => {
   if (snapshot?.status === "completed") {
-    return "已结束"
+    return "Completed"
   }
 
   if (reconnectState === "reconnecting") {
     return reconnectAttempt > 0
-      ? `正在恢复连接（第 ${reconnectAttempt} 次）`
-      : "正在恢复连接"
+      ? `Reconnecting (attempt ${reconnectAttempt})`
+      : "Reconnecting"
   }
 
   if (reconnectState === "disconnected") {
-    return "连接已断开"
+    return "Disconnected"
   }
 
   if (reconnectState === "reconnected") {
-    return "已恢复连接"
+    return "Reconnected"
   }
 
   if (snapshot?.status === "paused") {
-    return "已暂停"
+    return "Paused"
   }
 
   if (voiceStatus.connecting) {
-    return "正在连接"
+    return "Connecting"
   }
 
   if (isJoinedCurrentSession && voiceStatus.agentReady) {
-    return "语音已接通"
+    return "Voice connected"
   }
 
   if (isJoinedCurrentSession) {
-    return "等待 tutor 接入"
+    return "Waiting for tutor"
   }
 
-  return "准备开始"
+  return "Ready to start"
 }
 
 const getStepProgressLabel = (snapshot: SessionSnapshot | null) => {
   if (!snapshot) {
-    return "开始这道菜后，这里会显示当前进度。"
+    return "Progress will be shown here once you start cooking."
   }
 
-  return `第 ${snapshot.currentStepIndex + 1} 步 / 共 ${snapshot.totalSteps} 步`
+  return `Step ${snapshot.currentStepIndex + 1} of ${snapshot.totalSteps}`
 }
 
 type CompanionStage = "discovery" | "active" | "completed"
@@ -119,7 +120,8 @@ const buildCompletionSummary = (
       (timer) => timer.status === "cancelled"
     ).length,
     completedAt: snapshot.updatedAt,
-    completionMessage: "本次做菜会话已经结束，你可以稍后再开始下一道菜。",
+    completionMessage:
+      "This cooking session has ended. You can start another dish later.",
     expiredTimerCount: snapshot.activeTimers.filter(
       (timer) => timer.status === "expired"
     ).length,
@@ -178,6 +180,9 @@ export function App() {
     shouldSync: voiceStatus.connected,
   })
   const isJoiningVoice = voiceStatus.connecting
+  const displayedSnapshot = latestSnapshot ?? sessionResult?.session ?? null
+  const currentSessionId = displayedSnapshot?.sessionId ?? null
+  const existingSummary = displayedSnapshot?.summary ?? null
 
   const handleCreateSession = async () => {
     setVoiceError("")
@@ -187,7 +192,7 @@ export function App() {
       const result = await createSessionForSelectedRecipe()
 
       if (result) {
-        setPoliteAnnouncement("session 已创建")
+        setPoliteAnnouncement("Session created")
       }
     } catch {
       return
@@ -195,15 +200,12 @@ export function App() {
   }
 
   const handleJoinVoice = async () => {
-    const currentSessionId =
-      latestSnapshot?.sessionId ?? sessionResult?.session.sessionId
-
     if (!currentSessionId) {
       return
     }
 
     setVoiceError("")
-    setPoliteAnnouncement("正在连接语音指导")
+    setPoliteAnnouncement("Connecting to voice guidance")
 
     try {
       const nextConnectResult = await connectSession(currentSessionId)
@@ -214,14 +216,14 @@ export function App() {
 
         if (refreshedSnapshot?.status === "completed") {
           await disconnectRoom()
-          setPoliteAnnouncement("会话已结束，已切换到总结。")
+          setPoliteAnnouncement("Session ended, switched to summary.")
         }
       }
     } catch (error) {
       setVoiceError(
         buildApiRecoveryMessage(
           error instanceof Error ? error.message : undefined,
-          "暂时无法接通语音指导。"
+          "Unable to connect to voice guidance at the moment."
         )
       )
     }
@@ -237,8 +239,8 @@ export function App() {
       if (result) {
         setPoliteAnnouncement(
           result.session.status === "completed"
-            ? "已恢复完成会话"
-            : "已恢复之前的会话"
+            ? "Restored completed session"
+            : "Restored previous session"
         )
       }
     } catch {
@@ -248,9 +250,6 @@ export function App() {
 
   useEffect(() => {
     reconnectSessionRef.current = async () => {
-      const currentSessionId =
-        latestSnapshot?.sessionId ?? sessionResult?.session.sessionId
-
       if (!currentSessionId) {
         return false
       }
@@ -275,11 +274,10 @@ export function App() {
       }
     }
   }, [
+    currentSessionId,
     disconnectRoom,
     joinVoiceSession,
-    latestSnapshot?.sessionId,
     refreshCompanionState,
-    sessionResult?.session.sessionId,
   ])
 
   const handleReturnToDiscovery = async (
@@ -302,14 +300,14 @@ export function App() {
       await disconnectRoom()
       await deleteSessionRoom(sessionId)
       resetSessionState()
-      setPoliteAnnouncement("已返回 Discovery，请重新选择菜谱。")
+      setPoliteAnnouncement("Returned to Discovery, please select a recipe.")
     } catch (error) {
       setVoiceError(
         buildApiRecoveryMessage(
           error instanceof Error ? error.message : undefined,
           mode === "active"
-            ? "暂时无法结束当前会话并返回重选。"
-            : "暂时无法返回重选。"
+            ? "Unable to end session and return at the moment."
+            : "Unable to return at the moment."
         )
       )
     } finally {
@@ -317,13 +315,11 @@ export function App() {
     }
   }
 
-  const displayedSnapshot = latestSnapshot ?? sessionResult?.session ?? null
-  const existingSummary = displayedSnapshot?.summary ?? null
   const isJoinedCurrentSession = Boolean(
     connectResult &&
-    displayedSnapshot &&
+    currentSessionId &&
     voiceStatus.connected &&
-    connectResult.sessionId === displayedSnapshot.sessionId
+    connectResult.sessionId === currentSessionId
   )
   const lifecycleStatus = getLifecycleStatus(
     displayedSnapshot,
@@ -333,23 +329,23 @@ export function App() {
     isJoinedCurrentSession
   )
   const microphoneStatus = voiceStatus.micEnabled
-    ? "麦克风已开启"
-    : "麦克风未开启"
+    ? "Microphone on"
+    : "Microphone off"
   const audioStatus = voiceStatus.audioReady
-    ? "浏览器音频已就绪"
-    : "等待浏览器播放音频"
+    ? "Browser audio ready"
+    : "Waiting for browser audio"
   const sessionJoinStatus = isJoinedCurrentSession
-    ? "已加入当前会话"
-    : "尚未加入当前会话"
+    ? "Joined current session"
+    : "Not joined current session"
   const tutorStatus = voiceStatus.agentReady
-    ? "tutor 已接入"
-    : "等待 tutor 接入"
+    ? "Tutor connected"
+    : "Waiting for tutor"
   const voiceActivityLabel =
     voiceActivityState === "speaking"
-      ? "tutor 正在说话"
+      ? "Tutor is speaking"
       : voiceActivityState === "idle"
-        ? "tutor 在线待机"
-        : "暂未检测到远端音频"
+        ? "Tutor is online and waiting"
+        : "No remote audio detected"
   const stage = getCompanionStage(displayedSnapshot, existingSummary)
   const canReconnectCurrentSession =
     stage === "active" && Boolean(displayedSnapshot) && canRetryManually
@@ -361,21 +357,21 @@ export function App() {
     const previousVoiceStatus = previousVoiceStatusRef.current
 
     if (!previousVoiceStatus.audioReady && voiceStatus.audioReady) {
-      setPoliteAnnouncement("浏览器音频已就绪")
+      setPoliteAnnouncement("Browser audio ready")
     } else if (
       !previousVoiceStatus.connected &&
       voiceStatus.connected &&
       !voiceStatus.audioReady
     ) {
-      setPoliteAnnouncement("等待浏览器播放音频")
+      setPoliteAnnouncement("Waiting for browser audio")
     }
 
     if (!previousVoiceStatus.agentReady && voiceStatus.agentReady) {
-      setPoliteAnnouncement("tutor 已接入")
+      setPoliteAnnouncement("Tutor connected")
     }
 
     if (!previousVoiceStatus.connected && isJoinedCurrentSession) {
-      setPoliteAnnouncement("语音已接通")
+      setPoliteAnnouncement("Voice connected")
     }
 
     previousVoiceStatusRef.current = voiceStatus
@@ -390,20 +386,20 @@ export function App() {
       )
 
       if (!previousTimer) {
-        setPoliteAnnouncement("已新建计时器")
+        setPoliteAnnouncement("Timer created")
         previousTimersRef.current = timers
         return
       }
 
       if (previousTimer.status !== timer.status) {
         if (timer.status === "cancelled") {
-          setPoliteAnnouncement("已取消计时器")
+          setPoliteAnnouncement("Timer cancelled")
           previousTimersRef.current = timers
           return
         }
 
         if (timer.status === "expired") {
-          setPoliteAnnouncement("timer 已到点")
+          setPoliteAnnouncement("Timer expired")
           previousTimersRef.current = timers
           return
         }
@@ -502,18 +498,28 @@ export function App() {
             className="min-h-12 w-full text-base sm:w-auto"
             disabled={isJoiningVoice}
             onClick={() => void handleJoinVoice()}
-            variant="secondary"
+            variant="success"
           >
-            {isJoiningVoice ? "正在重新加入" : "重新加入"}
+            {isJoiningVoice ? (
+              <LoaderCircle className="h-5 w-5 mr-2 animate-spin" />
+            ) : (
+              <Mic className="h-5 w-5 mr-2" />
+            )}
+            {isJoiningVoice ? "Reconnecting" : "Reconnect"}
           </Button>
         ) : !isJoinedCurrentSession ? (
           <Button
             className="min-h-12 w-full text-base sm:w-auto"
             disabled={!displayedSnapshot || isJoiningVoice}
             onClick={() => void handleJoinVoice()}
-            variant="secondary"
+            variant="success"
           >
-            {isJoiningVoice ? "正在接通" : "接通语音指导"}
+            {isJoiningVoice ? (
+              <LoaderCircle className="h-5 w-5 mr-2 animate-spin" />
+            ) : (
+              <Mic className="h-5 w-5 mr-2" />
+            )}
+            {isJoiningVoice ? "Connecting" : "Connect voice guidance"}
           </Button>
         ) : null
       }
@@ -525,7 +531,7 @@ export function App() {
             onClick={() => void handleReturnToDiscovery("active")}
             variant="destructive"
           >
-            {isReturningToDiscovery ? "正在返回重选" : "结束并返回重选"}
+            {isReturningToDiscovery ? "Returning" : "End and return"}
           </Button>
         ) : null
       }
@@ -550,7 +556,7 @@ export function App() {
             onClick={() => void handleReturnToDiscovery("completed")}
             variant="destructive"
           >
-            {isReturningToDiscovery ? "正在返回重选" : "返回重选"}
+            {isReturningToDiscovery ? "Returning" : "Return"}
           </Button>
         }
         summary={displayedSummary}

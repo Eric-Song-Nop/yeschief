@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "start": "bun server.js",
     "lint": "oxlint --config ../../.oxlintrc.json .",
     "lint:fix": "oxlint --config ../../.oxlintrc.json --fix .",
     "format": "oxfmt --config ../../.oxfmtrc.json --ignore-path ../../.gitignore --ignore-path ../../.oxfmtignore --write .",

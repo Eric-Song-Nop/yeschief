@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite"
 import { mkdirSync } from "node:fs"
 import { dirname } from "node:path"
-import { presetRecipes, sessions, timers } from "./schema"
+import { presetRecipes, sessionRoomBindings, sessions, timers } from "./schema"
 
 export const DEFAULT_DATABASE_URL = "./apps/api/data/yes-chief.sqlite"
 
@@ -35,6 +35,7 @@ const initializeDatabase = (sqlite: Database) => {
   sqlite.exec(presetRecipes.createSql)
   sqlite.exec(sessions.createSql)
   sqlite.exec(timers.createSql)
+  sqlite.exec(sessionRoomBindings.createSql)
 }
 
 export const getDatabase = (databaseUrl?: string) => {

@@ -7,6 +7,11 @@ import {
   AgentDispatchClient,
   RoomServiceClient,
 } from "livekit-server-sdk"
+import {
+  clearSessionRoomBinding,
+  getSessionRoomBinding,
+  upsertSessionRoomBinding,
+} from "./session-room-binding"
 
 const LIVEKIT_AGENT_NAME = "agent"
 const DISPATCH_REQUEST_TIMEOUT_SEC = 10
@@ -58,8 +63,9 @@ const getLiveKitConfig = (env: LiveKitEnv) => {
 const buildParticipantIdentity = (sessionId: string) =>
   `web-${sessionId}-${crypto.randomUUID().slice(0, 8)}`
 
-const buildDispatchMetadata = (sessionId: string) =>
+const buildDispatchMetadata = (sessionId: string, roomName: string) =>
   JSON.stringify({
+    roomName,
     sessionId,
   })
 
@@ -98,7 +104,7 @@ const ensureAgentDispatch = async (
   roomName: string,
   sessionId: string
 ) => {
-  const metadata = buildDispatchMetadata(sessionId)
+  const metadata = buildDispatchMetadata(sessionId, roomName)
   const dispatches = await dispatchClient.listDispatch(roomName)
   const hasMatchingDispatch = dispatches.some(
     (dispatch) => dispatch.agentName === LIVEKIT_AGENT_NAME
@@ -113,12 +119,58 @@ const ensureAgentDispatch = async (
   })
 }
 
+const roomExists = async (roomClient: SessionRoomClient, roomName: string) => {
+  const existingRooms = await roomClient.listRooms([roomName])
+
+  return existingRooms.some((room) => room.name === roomName)
+}
+
+const buildReplacementRoomName = (sessionId: string) =>
+  `session-${sessionId.slice(0, 8)}-${crypto.randomUUID().slice(0, 8)}`
+
+const resolveSessionRoomBinding = async (
+  sessionId: string,
+  roomClient: SessionRoomClient,
+  databaseUrl?: string
+) => {
+  const currentBinding = getSessionRoomBinding(sessionId, databaseUrl)
+
+  if (
+    currentBinding &&
+    (await roomExists(roomClient, currentBinding.roomName))
+  ) {
+    return currentBinding
+  }
+
+  if (!currentBinding && (await roomExists(roomClient, sessionId))) {
+    return upsertSessionRoomBinding(
+      {
+        roomName: sessionId,
+        sessionId,
+      },
+      databaseUrl
+    )
+  }
+
+  const roomName = buildReplacementRoomName(sessionId)
+
+  await ensureRoomExists(roomClient, roomName)
+
+  return upsertSessionRoomBinding(
+    {
+      roomName,
+      sessionId,
+    },
+    databaseUrl
+  )
+}
+
 export const connectSession = async (
   sessionId: string,
-  env: LiveKitEnv = Bun.env
+  env: LiveKitEnv = Bun.env,
+  databaseUrl?: string
 ): Promise<ConnectSessionResult> => {
   const config = getLiveKitConfig(env)
-  const roomName = sessionId
   const dispatchClient = new AgentDispatchClient(
     config.serverUrl,
     config.apiKey,
@@ -128,10 +180,15 @@ export const connectSession = async (
     }
   )
   const roomClient = roomServiceClientFactory(config)
+  let binding
 
   try {
-    await ensureRoomExists(roomClient, roomName)
-    await ensureAgentDispatch(dispatchClient, roomName, sessionId)
+    binding = await resolveSessionRoomBinding(
+      sessionId,
+      roomClient,
+      databaseUrl
+    )
+    await ensureAgentDispatch(dispatchClient, binding.roomName, sessionId)
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unknown dispatch failure"
@@ -146,6 +203,7 @@ export const connectSession = async (
     identity: buildParticipantIdentity(sessionId),
     metadata: JSON.stringify({
       role: "web-companion",
+      roomName: binding.roomName,
       sessionId,
     }),
     name: "Cooking Companion",
@@ -156,15 +214,15 @@ export const connectSession = async (
     canPublish: true,
     canPublishData: true,
     canSubscribe: true,
-    room: roomName,
+    room: binding.roomName,
     roomJoin: true,
   })
 
   const participantToken = await token.toJwt()
 
   return {
+    binding,
     participantToken,
-    roomName,
     serverUrl: config.serverUrl,
     sessionId,
   }
@@ -172,16 +230,20 @@ export const connectSession = async (
 
 export const deleteSessionRoom = async (
   sessionId: string,
-  env: LiveKitEnv = Bun.env
+  env: LiveKitEnv = Bun.env,
+  databaseUrl?: string
 ): Promise<DeleteSessionRoomResult> => {
   const config = getLiveKitConfig(env)
-  const roomName = sessionId
   const roomClient = roomServiceClientFactory(config)
+  const binding = getSessionRoomBinding(sessionId, databaseUrl)
+  const roomName = binding?.roomName ?? sessionId
 
   try {
     const existingRooms = await roomClient.listRooms([roomName])
 
     if (existingRooms.length === 0) {
+      clearSessionRoomBinding(sessionId, databaseUrl)
+
       return {
         cleanup: "already_missing",
         roomName,
@@ -190,6 +252,7 @@ export const deleteSessionRoom = async (
     }
 
     await roomClient.deleteRoom(roomName)
+    clearSessionRoomBinding(sessionId, databaseUrl)
 
     return {
       cleanup: "deleted",

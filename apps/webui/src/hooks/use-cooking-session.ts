@@ -25,7 +25,7 @@ const buildApiRecoveryMessage = (
 ) => {
   const detail = message?.trim() || fallback
 
-  return `请确认 API 与 LiveKit 已启动后重试。 ${detail}`
+  return `Please make sure API and LiveKit are running and try again. ${detail}`
 }
 
 export function useCookingSession({ shouldSync }: UseCookingSessionOptions) {
@@ -86,7 +86,7 @@ export function useCookingSession({ shouldSync }: UseCookingSessionOptions) {
         setRecipesError(
           buildApiRecoveryMessage(
             error instanceof Error ? error.message : undefined,
-            "暂时无法加载可选菜谱。"
+            "Unable to load available recipes at the moment."
           )
         )
       } finally {
@@ -123,7 +123,7 @@ export function useCookingSession({ shouldSync }: UseCookingSessionOptions) {
       setRecoveryError(
         buildApiRecoveryMessage(
           error instanceof Error ? error.message : undefined,
-          "暂时无法加载可恢复会话。"
+          "Unable to load recoverable sessions at the moment."
         )
       )
     } finally {
@@ -165,7 +165,7 @@ export function useCookingSession({ shouldSync }: UseCookingSessionOptions) {
       setSyncError(
         buildApiRecoveryMessage(
           error instanceof Error ? error.message : undefined,
-          "暂时无法同步当前会话。"
+          "Unable to sync current session at the moment."
         )
       )
 
@@ -222,7 +222,7 @@ export function useCookingSession({ shouldSync }: UseCookingSessionOptions) {
 
   const createSessionForSelectedRecipe = async () => {
     if (!selectedRecipeId) {
-      setCreateError("请先选择一道菜再开始。")
+      setCreateError("Please select a dish first.")
       return null
     }
 
@@ -250,7 +250,7 @@ export function useCookingSession({ shouldSync }: UseCookingSessionOptions) {
       setCreateError(
         buildApiRecoveryMessage(
           error instanceof Error ? error.message : undefined,
-          "暂时无法开始这道菜。"
+          "Unable to start this dish at the moment."
         )
       )
 
@@ -294,7 +294,7 @@ export function useCookingSession({ shouldSync }: UseCookingSessionOptions) {
       setSyncError(
         buildApiRecoveryMessage(
           error instanceof Error ? error.message : undefined,
-          "暂时无法恢复这个会话。"
+          "Unable to restore this session at the moment."
         )
       )
 

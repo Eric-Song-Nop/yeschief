@@ -20,6 +20,7 @@ export {
   type SessionCommandResponse,
   type SessionCommandResult,
   type SessionRecoveryItem,
+  type SessionRoomBinding,
   type SessionCommandType,
   type SessionSnapshot,
   type SessionStatus,

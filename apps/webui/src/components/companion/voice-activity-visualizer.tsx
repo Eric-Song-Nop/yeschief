@@ -33,11 +33,11 @@ const getBarScale = (
 const getVoiceActivityLabel = (voiceActivityState: VoiceActivityState) => {
   switch (voiceActivityState) {
     case "speaking":
-      return "tutor 正在说话"
+      return "Tutor is speaking"
     case "idle":
-      return "tutor 在线待机"
+      return "Tutor is online and waiting"
     case "disconnected":
-      return "暂未检测到远端音频"
+      return "No remote audio detected"
   }
 }
 
@@ -47,7 +47,7 @@ export function VoiceActivityVisualizer({
 }: VoiceActivityVisualizerProps) {
   return (
     <div
-      aria-label="tutor 语音活动"
+      aria-label="Tutor Voice Activity"
       className="rounded-[1.75rem] border border-primary/20 bg-background/90 px-5 py-4"
       data-voice-activity-state={voiceActivityState}
     >
@@ -60,7 +60,7 @@ export function VoiceActivityVisualizer({
             {getVoiceActivityLabel(voiceActivityState)}
           </div>
         </div>
-        <div className="text-xs text-muted-foreground">实时音频驱动</div>
+        <div className="text-xs text-muted-foreground">Real-time audio driven</div>
       </div>
 
       <div className="mt-4 flex h-14 items-end gap-2">

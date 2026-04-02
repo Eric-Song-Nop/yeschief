@@ -18,7 +18,7 @@ import { startTimerReminderLoop } from "./orchestration/timer-reminders"
 
 loadAgentEnv({ strict: false })
 
-const parseSessionIdFromJobMetadata = (metadata?: string) => {
+export const parseSessionIdFromJobMetadata = (metadata?: string) => {
   if (!metadata) {
     return null
   }
@@ -30,6 +30,16 @@ const parseSessionIdFromJobMetadata = (metadata?: string) => {
   } catch {
     return null
   }
+}
+
+export const requireSessionIdFromDispatchMetadata = (metadata?: string) => {
+  const sessionId = parseSessionIdFromJobMetadata(metadata)
+
+  if (!sessionId) {
+    throw new Error("Session id is required from dispatch metadata")
+  }
+
+  return sessionId
 }
 
 type AgentSessionCloser = Pick<voice.AgentSession, "close">
@@ -112,14 +122,7 @@ export default defineAgent({
   },
   entry: async (ctx: JobContext) => {
     const apiClient = new SessionApiClient()
-    const sessionId =
-      parseSessionIdFromJobMetadata(ctx.job.metadata) ?? ctx.room.name ?? null
-
-    if (!sessionId) {
-      throw new Error(
-        "Session id is required from ctx.job.metadata or ctx.room.name"
-      )
-    }
+    const sessionId = requireSessionIdFromDispatchMetadata(ctx.job.metadata)
 
     const initialSession = await apiClient.getSession(sessionId)
     const snapshotStore = {

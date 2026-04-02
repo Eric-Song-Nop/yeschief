@@ -9,11 +9,11 @@ type TimerListProps = {
 const getTimerStatusLabel = (status: CompanionTimer["status"]) => {
   switch (status) {
     case "cancelled":
-      return "已取消"
+      return "Cancelled"
     case "expired":
-      return "已到点"
+      return "Expired"
     case "running":
-      return "计时中"
+      return "Running"
   }
 }
 
@@ -22,7 +22,7 @@ export function TimerList({ timers }: TimerListProps) {
     return (
       <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/60 bg-muted/10 p-8 text-center text-muted-foreground">
         <Timer className="mb-2 h-5 w-5 opacity-20" />
-        <span className="text-xs font-medium tracking-wide">无活跃计时器</span>
+        <span className="text-xs font-medium tracking-wide">No active timers</span>
       </div>
     )
   }
@@ -40,7 +40,7 @@ export function TimerList({ timers }: TimerListProps) {
                 {timer.label}
               </div>
               <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
-                第 {timer.stepIndex + 1} 步
+                Step {timer.stepIndex + 1}
               </div>
             </div>
             <Badge

@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest"
 import { loadAgentEnv } from "./env"
-import { registerGracefulShutdown, syncSnapshotStoreFromApi } from "./main"
+import {
+  parseSessionIdFromJobMetadata,
+  registerGracefulShutdown,
+  requireSessionIdFromDispatchMetadata,
+  syncSnapshotStoreFromApi,
+} from "./main"
 
 const ROOM_DISCONNECTED_EVENT = "disconnected" as const
 
@@ -106,5 +111,39 @@ describe("agent runtime smoke", () => {
     expect(getSession).toHaveBeenCalledWith("session-runtime-smoke")
     expect(refreshed.currentStep.title).toBe("Fresh step")
     expect(snapshotStore.current.currentStep.title).toBe("Fresh step")
+  })
+
+  it("parses session identity only from dispatch metadata", () => {
+    const metadata = JSON.stringify({
+      roomName: "debug-room-name",
+      sessionId: "session-metadata-only",
+    })
+
+    expect(parseSessionIdFromJobMetadata(metadata)).toBe(
+      "session-metadata-only"
+    )
+    expect(requireSessionIdFromDispatchMetadata(metadata)).toBe(
+      "session-metadata-only"
+    )
+  })
+
+  it("returns null or fails when dispatch metadata is missing or invalid", () => {
+    expect(parseSessionIdFromJobMetadata()).toBeNull()
+    expect(parseSessionIdFromJobMetadata("not-json")).toBeNull()
+    expect(
+      parseSessionIdFromJobMetadata(JSON.stringify({ roomName: "room-only" }))
+    ).toBeNull()
+
+    expect(() => requireSessionIdFromDispatchMetadata()).toThrow(
+      "Session id is required from dispatch metadata"
+    )
+    expect(() => requireSessionIdFromDispatchMetadata("not-json")).toThrow(
+      "Session id is required from dispatch metadata"
+    )
+    expect(() =>
+      requireSessionIdFromDispatchMetadata(
+        JSON.stringify({ roomName: "room-only" })
+      )
+    ).toThrow("Session id is required from dispatch metadata")
   })
 })

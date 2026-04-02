@@ -88,7 +88,11 @@ export const sessionsRoutes = new Elysia({ name: "sessions-routes" })
     }
 
     try {
-      const result = await connectSession(session.session.sessionId)
+      const result = await connectSession(
+        session.session.sessionId,
+        Bun.env,
+        Bun.env.DATABASE_URL
+      )
 
       return result satisfies ConnectSessionResult
     } catch (error) {
@@ -115,7 +119,11 @@ export const sessionsRoutes = new Elysia({ name: "sessions-routes" })
     }
 
     try {
-      const result = await deleteSessionRoom(session.session.sessionId)
+      const result = await deleteSessionRoom(
+        session.session.sessionId,
+        Bun.env,
+        Bun.env.DATABASE_URL
+      )
 
       return result satisfies DeleteSessionRoomResult
     } catch (error) {

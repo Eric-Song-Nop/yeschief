@@ -12,15 +12,15 @@ const getHeatLevelLabel = (
 ) => {
   switch (heatLevel) {
     case "high":
-      return "大火"
+      return "High Heat"
     case "low":
-      return "小火"
+      return "Low Heat"
     case "medium":
-      return "中火"
+      return "Medium Heat"
     case "medium-high":
-      return "中大火"
+      return "Medium-High Heat"
     case "off":
-      return "离火"
+      return "Off Heat"
   }
 }
 
@@ -62,11 +62,11 @@ export function SessionDashboard({
                 variant="outline"
                 className="border-amber-500/50 bg-amber-500/10 text-amber-600 dark:text-amber-400"
               >
-                已暂停
+                Paused
               </Badge>
             ) : (
               <Badge className="border-0 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400">
-                进行中
+                In Progress
               </Badge>
             )}
             <Badge
@@ -100,7 +100,7 @@ export function SessionDashboard({
             </div>
             <div>
               <div className="text-[10px] font-bold uppercase tracking-widest opacity-60">
-                火候提示
+                Heat Level
               </div>
               <div className="text-sm font-semibold text-foreground">
                 {getHeatLevelLabel(visibleSnapshot.currentStep.heatLevel)}
@@ -114,7 +114,7 @@ export function SessionDashboard({
             </div>
             <div>
               <div className="text-[10px] font-bold uppercase tracking-widest opacity-60">
-                观察重点
+                Focus Point
               </div>
               <div className="text-sm font-semibold text-foreground">
                 {visibleSnapshot.currentStep.focus}
@@ -137,7 +137,7 @@ export function SessionDashboard({
         {/* Timer Section - Most Urgent */}
         <div>
           <div className="mb-4 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">
-            活跃计时器
+            Active Timers
           </div>
           {timerPanel}
         </div>
