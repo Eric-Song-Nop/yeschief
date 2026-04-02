@@ -409,9 +409,7 @@ export function App() {
 
   const timerListPanel = <TimerList timers={visibleTimers} />
 
-  const activeSummary =
-    displayedSnapshot?.lastCommandResult?.message ??
-    displayedSnapshot?.currentStep.focus
+  const activeSummary = displayedSnapshot?.lastCommandResult?.message
 
   const stageContent =
     stage === "completed" && displayedSummary ? (
