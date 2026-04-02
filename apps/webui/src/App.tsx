@@ -7,6 +7,7 @@ import { toast } from "sonner"
 import { ConnectionStatus } from "@/components/companion/connection-status"
 import { RecipeSelection } from "@/components/companion/recipe-selection"
 import { SessionDashboard } from "@/components/companion/session-dashboard"
+import { SessionRecoveryList } from "@/components/companion/session-recovery-list"
 import { SessionSummary } from "@/components/companion/session-summary"
 import { TimerList } from "@/components/companion/timer-list"
 import { Button } from "@/components/ui/button"
@@ -134,9 +135,14 @@ export function App() {
     createError,
     createSessionForSelectedRecipe,
     isCreatingSession,
+    isLoadingRecoverySessions,
     isLoadingRecipes,
+    isLoadingSession,
     latestSnapshot,
+    loadSession,
     recipes,
+    recoveryError,
+    recoverySessions,
     recipesError,
     refreshCompanionState,
     resetSessionState,
@@ -189,6 +195,25 @@ export function App() {
           "暂时无法接通语音指导。"
         )
       )
+    }
+  }
+
+  const handleLoadSession = async (sessionId: string) => {
+    setVoiceError("")
+
+    try {
+      await disconnectRoom()
+      const result = await loadSession(sessionId)
+
+      if (result) {
+        setPoliteAnnouncement(
+          result.session.status === "completed"
+            ? "已恢复完成会话"
+            : "已恢复之前的会话"
+        )
+      }
+    } catch {
+      return
     }
   }
 
@@ -438,16 +463,26 @@ export function App() {
         voiceActivityState={voiceActivityState}
       />
     ) : (
-      <RecipeSelection
-        createError={createError}
-        isCreatingSession={isCreatingSession}
-        isLoadingRecipes={isLoadingRecipes}
-        onCreateSession={() => void handleCreateSession()}
-        onSelectRecipe={setSelectedRecipeId}
-        recipes={recipes}
-        recipesError={recipesError}
-        selectedRecipeId={selectedRecipeId}
-      />
+      <div className="space-y-10">
+        <SessionRecoveryList
+          error={recoveryError}
+          isLoading={isLoadingRecoverySessions}
+          isLoadingSession={isLoadingSession}
+          onLoadSession={(sessionId) => void handleLoadSession(sessionId)}
+          sessions={recoverySessions}
+        />
+
+        <RecipeSelection
+          createError={createError}
+          isCreatingSession={isCreatingSession || isLoadingSession}
+          isLoadingRecipes={isLoadingRecipes}
+          onCreateSession={() => void handleCreateSession()}
+          onSelectRecipe={setSelectedRecipeId}
+          recipes={recipes}
+          recipesError={recipesError}
+          selectedRecipeId={selectedRecipeId}
+        />
+      </div>
     )
 
   return (

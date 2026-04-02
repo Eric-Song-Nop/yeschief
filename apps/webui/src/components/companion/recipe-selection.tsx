@@ -30,11 +30,14 @@ export function RecipeSelection({
     <div className="mx-auto max-w-4xl space-y-16 py-12">
       {/* Hero Header */}
       <div className="space-y-4">
+        <div className="text-xs font-semibold uppercase tracking-[0.22em] text-primary/70">
+          开始新会话
+        </div>
         <h1 className="text-balance text-6xl font-light leading-[1.1] tracking-tight text-foreground sm:text-7xl md:text-8xl">
           想吃什么？
         </h1>
         <p className="text-xl font-medium text-muted-foreground/60 md:text-2xl">
-          选择一个菜谱，让 Yes Chief 带你下厨。
+          选择一个菜谱，或者从上方恢复之前的 session。
         </p>
       </div>
 
