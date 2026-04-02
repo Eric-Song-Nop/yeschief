@@ -15,6 +15,7 @@ import { useCookingSession } from "@/hooks/use-cooking-session"
 import {
   initialVoiceStatus,
   useLiveKitRoom,
+  type ReconnectState,
   type VoiceStatus,
 } from "@/hooks/use-livekit-room"
 import {
@@ -35,11 +36,27 @@ const buildApiRecoveryMessage = (
 
 const getLifecycleStatus = (
   snapshot: SessionSnapshot | null,
+  reconnectAttempt: number,
+  reconnectState: ReconnectState,
   voiceStatus: VoiceStatus,
   isJoinedCurrentSession: boolean
 ) => {
   if (snapshot?.status === "completed") {
     return "已结束"
+  }
+
+  if (reconnectState === "reconnecting") {
+    return reconnectAttempt > 0
+      ? `正在恢复连接（第 ${reconnectAttempt} 次）`
+      : "正在恢复连接"
+  }
+
+  if (reconnectState === "disconnected") {
+    return "连接已断开"
+  }
+
+  if (reconnectState === "reconnected") {
+    return "已恢复连接"
   }
 
   if (snapshot?.status === "paused") {
@@ -121,16 +138,22 @@ export function App() {
   const previousTimersRef = useRef<CompanionTimer[]>([])
   const previousPoliteAnnouncementRef = useRef("")
   const previousAssertiveAnnouncementRef = useRef("")
+  const reconnectSessionRef = useRef<() => Promise<boolean>>(async () => false)
   const {
     audioHostRef,
+    canRetryManually,
     connectResult,
     disconnectRoom,
     joinVoiceSession,
+    reconnectAttempt,
+    reconnectState,
     voiceActivityLevel,
     voiceActivityState,
     voiceError: roomVoiceError,
     voiceStatus,
-  } = useLiveKitRoom()
+  } = useLiveKitRoom({
+    onReconnectNeeded: async () => reconnectSessionRef.current(),
+  })
   const {
     createError,
     createSessionForSelectedRecipe,
@@ -172,7 +195,10 @@ export function App() {
   }
 
   const handleJoinVoice = async () => {
-    if (!sessionResult) {
+    const currentSessionId =
+      latestSnapshot?.sessionId ?? sessionResult?.session.sessionId
+
+    if (!currentSessionId) {
       return
     }
 
@@ -180,13 +206,16 @@ export function App() {
     setPoliteAnnouncement("正在连接语音指导")
 
     try {
-      const nextConnectResult = await connectSession(
-        sessionResult.session.sessionId
-      )
+      const nextConnectResult = await connectSession(currentSessionId)
       const joined = await joinVoiceSession(nextConnectResult)
 
       if (joined) {
-        await refreshCompanionState()
+        const refreshedSnapshot = await refreshCompanionState()
+
+        if (refreshedSnapshot?.status === "completed") {
+          await disconnectRoom()
+          setPoliteAnnouncement("会话已结束，已切换到总结。")
+        }
       }
     } catch (error) {
       setVoiceError(
@@ -216,6 +245,42 @@ export function App() {
       return
     }
   }
+
+  useEffect(() => {
+    reconnectSessionRef.current = async () => {
+      const currentSessionId =
+        latestSnapshot?.sessionId ?? sessionResult?.session.sessionId
+
+      if (!currentSessionId) {
+        return false
+      }
+
+      try {
+        const nextConnectResult = await connectSession(currentSessionId)
+        const joined = await joinVoiceSession(nextConnectResult)
+
+        if (!joined) {
+          return false
+        }
+
+        const refreshedSnapshot = await refreshCompanionState()
+
+        if (refreshedSnapshot?.status === "completed") {
+          await disconnectRoom()
+        }
+
+        return true
+      } catch {
+        return false
+      }
+    }
+  }, [
+    disconnectRoom,
+    joinVoiceSession,
+    latestSnapshot?.sessionId,
+    refreshCompanionState,
+    sessionResult?.session.sessionId,
+  ])
 
   const handleReturnToDiscovery = async (
     mode: Extract<CompanionStage, "active" | "completed">
@@ -262,6 +327,8 @@ export function App() {
   )
   const lifecycleStatus = getLifecycleStatus(
     displayedSnapshot,
+    reconnectAttempt,
+    reconnectState,
     voiceStatus,
     isJoinedCurrentSession
   )
@@ -283,8 +350,10 @@ export function App() {
       : voiceActivityState === "idle"
         ? "tutor 在线待机"
         : "暂未检测到远端音频"
-  const visibleTimers = timers.filter((timer) => timer.status === "running")
   const stage = getCompanionStage(displayedSnapshot, existingSummary)
+  const canReconnectCurrentSession =
+    stage === "active" && Boolean(displayedSnapshot) && canRetryManually
+  const visibleTimers = timers.filter((timer) => timer.status === "running")
   const displayedSummary =
     stage === "completed" ? buildCompletionSummary(displayedSnapshot) : null
 
@@ -375,6 +444,32 @@ export function App() {
   }, [roomVoiceError])
 
   useEffect(() => {
+    if (reconnectState !== "reconnected") {
+      return
+    }
+
+    let cancelled = false
+
+    const reconcileRecoveredSession = async () => {
+      const refreshedSnapshot = await refreshCompanionState()
+
+      if (cancelled) {
+        return
+      }
+
+      if (refreshedSnapshot?.status === "completed") {
+        await disconnectRoom()
+      }
+    }
+
+    void reconcileRecoveredSession()
+
+    return () => {
+      cancelled = true
+    }
+  }, [disconnectRoom, reconnectState, refreshCompanionState])
+
+  useEffect(() => {
     if (
       politeAnnouncement &&
       politeAnnouncement !== previousPoliteAnnouncementRef.current
@@ -402,10 +497,19 @@ export function App() {
       lifecycleStatus={lifecycleStatus}
       microphoneStatus={microphoneStatus}
       primaryAction={
-        !isJoinedCurrentSession ? (
+        canReconnectCurrentSession ? (
           <Button
             className="min-h-12 w-full text-base sm:w-auto"
-            disabled={!sessionResult || isJoiningVoice}
+            disabled={isJoiningVoice}
+            onClick={() => void handleJoinVoice()}
+            variant="secondary"
+          >
+            {isJoiningVoice ? "正在重新加入" : "重新加入"}
+          </Button>
+        ) : !isJoinedCurrentSession ? (
+          <Button
+            className="min-h-12 w-full text-base sm:w-auto"
+            disabled={!displayedSnapshot || isJoiningVoice}
             onClick={() => void handleJoinVoice()}
             variant="secondary"
           >

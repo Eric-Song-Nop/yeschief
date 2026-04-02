@@ -12,6 +12,12 @@ export type VoiceStatus = {
   micEnabled: boolean
 }
 
+export type ReconnectState =
+  | "idle"
+  | "reconnecting"
+  | "reconnected"
+  | "disconnected"
+
 type AttachedAudio = {
   mediaElement: HTMLMediaElement
   track: RemoteTrack
@@ -35,6 +41,7 @@ export const initialVoiceStatus: VoiceStatus = {
 
 const SPEAKING_THRESHOLD = 0.08
 const SPEAKING_MULTIPLIER = 6
+const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 8000] as const
 
 const buildApiRecoveryMessage = (
   message: string | undefined,
@@ -67,11 +74,19 @@ const getAgentReady = (room: Room) =>
     (participant) => participant.isAgent
   )
 
-export function useLiveKitRoom() {
+type UseLiveKitRoomOptions = {
+  onReconnectNeeded?: () => Promise<boolean>
+}
+
+export function useLiveKitRoom(options: UseLiveKitRoomOptions = {}) {
   const [connectResult, setConnectResult] =
     useState<ConnectSessionResult | null>(null)
   const [voiceError, setVoiceError] = useState("")
   const [voiceStatus, setVoiceStatus] = useState(initialVoiceStatus)
+  const [reconnectAttempt, setReconnectAttempt] = useState(0)
+  const [reconnectState, setReconnectState] =
+    useState<ReconnectState>("idle")
+  const [canRetryManually, setCanRetryManually] = useState(false)
   const [voiceActivityLevel, setVoiceActivityLevel] = useState(0)
   const [voiceActivityState, setVoiceActivityState] =
     useState<VoiceActivityState>("disconnected")
@@ -86,6 +101,27 @@ export function useLiveKitRoom() {
     trackSid: null,
   })
   const isMountedRef = useRef(true)
+  const reconnectAttemptRef = useRef(0)
+  const reconnectTimerRef = useRef<number | null>(null)
+  const reconnectHandlerRef = useRef(options.onReconnectNeeded)
+
+  useEffect(() => {
+    reconnectHandlerRef.current = options.onReconnectNeeded
+  }, [options.onReconnectNeeded])
+
+  const clearReconnectSchedule = (resetState = false) => {
+    if (reconnectTimerRef.current !== null) {
+      window.clearTimeout(reconnectTimerRef.current)
+      reconnectTimerRef.current = null
+    }
+
+    if (resetState) {
+      reconnectAttemptRef.current = 0
+      setReconnectAttempt(0)
+      setReconnectState("idle")
+      setCanRetryManually(false)
+    }
+  }
 
   const stopVoiceActivityAnalysis = () => {
     const currentAnalysis = analysisRef.current
@@ -249,6 +285,7 @@ export function useLiveKitRoom() {
 
     roomRef.current = null
     clearAttachedAudio()
+    clearReconnectSchedule(true)
 
     if (room) {
       room.removeAllListeners()
@@ -262,8 +299,60 @@ export function useLiveKitRoom() {
     }
   }
 
+  const markReconnectFailure = () => {
+    reconnectAttemptRef.current = RECONNECT_DELAYS_MS.length
+    setReconnectAttempt(RECONNECT_DELAYS_MS.length)
+    setReconnectState("disconnected")
+    setCanRetryManually(true)
+  }
+
+  const scheduleReconnect = () => {
+    const reconnectHandler = reconnectHandlerRef.current
+
+    if (!reconnectHandler) {
+      markReconnectFailure()
+      return
+    }
+
+    const currentAttempt = reconnectAttemptRef.current
+
+    if (currentAttempt >= RECONNECT_DELAYS_MS.length) {
+      markReconnectFailure()
+      return
+    }
+
+    const nextAttempt = currentAttempt + 1
+
+    reconnectAttemptRef.current = nextAttempt
+    setReconnectAttempt(nextAttempt)
+    setReconnectState("reconnecting")
+    setCanRetryManually(false)
+
+    reconnectTimerRef.current = window.setTimeout(async () => {
+      const recovered = await reconnectHandler()
+
+      if (!isMountedRef.current) {
+        return
+      }
+
+      if (recovered) {
+        clearReconnectSchedule()
+        reconnectAttemptRef.current = 0
+        setReconnectAttempt(0)
+        setReconnectState("reconnected")
+        setCanRetryManually(false)
+        return
+      }
+
+      scheduleReconnect()
+    }, RECONNECT_DELAYS_MS[currentAttempt])
+  }
+
   const joinVoiceSession = async (connectPayload: ConnectSessionResult) => {
     setVoiceError("")
+    clearReconnectSchedule()
+    setCanRetryManually(false)
+    setReconnectState("idle")
     setVoiceStatus({
       ...initialVoiceStatus,
       connecting: true,
@@ -310,6 +399,38 @@ export function useLiveKitRoom() {
         syncAgentReady()
       })
 
+      room.on(RoomEvent.Reconnecting, () => {
+        if (!isCurrentRoom() || !isMountedRef.current) {
+          return
+        }
+
+        setReconnectState("reconnecting")
+        setReconnectAttempt((currentAttempt) => currentAttempt || 1)
+        setCanRetryManually(false)
+        setVoiceStatus((currentStatus) => ({
+          ...currentStatus,
+          connecting: true,
+        }))
+      })
+
+      room.on(RoomEvent.Reconnected, () => {
+        if (!isCurrentRoom() || !isMountedRef.current) {
+          return
+        }
+
+        clearReconnectSchedule()
+        reconnectAttemptRef.current = 0
+        setReconnectAttempt(0)
+        setReconnectState("reconnected")
+        setCanRetryManually(false)
+        setVoiceStatus((currentStatus) => ({
+          ...currentStatus,
+          connected: true,
+          connecting: false,
+        }))
+        syncAgentReady()
+      })
+
       room.on(RoomEvent.Disconnected, () => {
         if (!isCurrentRoom() || !isMountedRef.current) {
           return
@@ -318,6 +439,7 @@ export function useLiveKitRoom() {
         clearAttachedAudio()
         setConnectResult(null)
         setVoiceStatus(initialVoiceStatus)
+        scheduleReconnect()
       })
 
       room.on(RoomEvent.ParticipantConnected, () => {
@@ -382,6 +504,11 @@ export function useLiveKitRoom() {
         return false
       }
 
+      clearReconnectSchedule()
+      reconnectAttemptRef.current = 0
+      setReconnectAttempt(0)
+      setReconnectState("idle")
+      setCanRetryManually(false)
       setVoiceStatus((currentStatus) => ({
         ...currentStatus,
         agentReady: getAgentReady(room),
@@ -413,15 +540,19 @@ export function useLiveKitRoom() {
 
     return () => {
       isMountedRef.current = false
+      clearReconnectSchedule()
       void disconnectRoom()
     }
   }, [])
 
   return {
     audioHostRef,
+    canRetryManually,
     connectResult,
     disconnectRoom,
     joinVoiceSession,
+    reconnectAttempt,
+    reconnectState,
     voiceActivityLevel,
     voiceActivityState,
     voiceError,

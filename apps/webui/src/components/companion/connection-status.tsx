@@ -16,14 +16,34 @@ type ConnectionStatusProps = {
 
 export function ConnectionStatus({
   audioStatus,
+  lifecycleStatus,
   microphoneStatus,
   primaryAction,
   secondaryAction,
   sessionJoinStatus,
   tutorStatus,
+  voiceActivityLabel,
 }: ConnectionStatusProps) {
   return (
     <div className="space-y-6">
+      <div className="rounded-2xl border border-border/70 bg-muted/25 px-4 py-4">
+        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          连接状态
+        </div>
+        <div className="mt-2 text-lg font-semibold text-foreground">
+          {lifecycleStatus}
+        </div>
+        {lifecycleStatus === "连接已断开" ? (
+          <div className="mt-2 text-sm text-muted-foreground">
+            自动恢复已停止，请点击“重新加入”继续当前会话。
+          </div>
+        ) : (
+          <div className="mt-2 text-sm text-muted-foreground">
+            {voiceActivityLabel}
+          </div>
+        )}
+      </div>
+
       {/* Action Buttons */}
       {primaryAction || secondaryAction ? (
         <div className="flex flex-col gap-3">

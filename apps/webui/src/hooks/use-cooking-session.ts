@@ -139,7 +139,7 @@ export function useCookingSession({ shouldSync }: UseCookingSessionOptions) {
 
   const refreshCompanionState = async () => {
     if (!sessionId) {
-      return
+      return null
     }
 
     try {
@@ -155,9 +155,11 @@ export function useCookingSession({ shouldSync }: UseCookingSessionOptions) {
       setLatestSnapshot(sessionResponse.session)
       setTimers(toCompanionTimers(timersResponse.timers))
       setSyncError("")
+
+      return sessionResponse.session
     } catch (error) {
       if (!isMountedRef.current) {
-        return
+        return null
       }
 
       setSyncError(
@@ -166,6 +168,8 @@ export function useCookingSession({ shouldSync }: UseCookingSessionOptions) {
           "暂时无法同步当前会话。"
         )
       )
+
+      return null
     }
   }
 
