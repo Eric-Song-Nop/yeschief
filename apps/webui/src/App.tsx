@@ -1,29 +1,14 @@
-import type {
-  ConnectSessionResult,
-  SessionSnapshot,
-} from "@yes-chief/shared"
-import { Track, Room, RoomEvent, type RemoteTrack } from "livekit-client"
+import type { SessionSnapshot } from "@yes-chief/shared"
 import { LoaderCircle, Soup } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { useCookingSession } from "@/hooks/use-cooking-session"
+import {
+  initialVoiceStatus,
+  useLiveKitRoom,
+  type VoiceStatus,
+} from "@/hooks/use-livekit-room"
 import { connectSession, type CompanionTimer } from "@/lib/api"
-
-type VoiceStatus = {
-  agentReady: boolean
-  audioReady: boolean
-  connected: boolean
-  connecting: boolean
-  micEnabled: boolean
-}
-
-const initialVoiceStatus: VoiceStatus = {
-  agentReady: false,
-  audioReady: false,
-  connected: false,
-  connecting: false,
-  micEnabled: false,
-}
 
 const buildApiRecoveryMessage = (
   message: string | undefined,
@@ -32,15 +17,6 @@ const buildApiRecoveryMessage = (
   const detail = message?.trim() || fallback
 
   return `请确认 API 与 LiveKit 已启动后重试。 ${detail}`
-}
-
-const buildMicRecoveryMessage = (
-  message: string | undefined,
-  fallback: string
-) => {
-  const detail = message?.trim() || fallback
-
-  return `请检查麦克风权限后重试。 ${detail}`
 }
 
 const getTimerStatusLabel = (status: CompanionTimer["status"]) => {
@@ -57,7 +33,6 @@ const getTimerStatusLabel = (status: CompanionTimer["status"]) => {
 const getLifecycleStatus = (
   snapshot: SessionSnapshot | null,
   voiceStatus: VoiceStatus,
-  isJoiningVoice: boolean,
   isJoinedCurrentSession: boolean
 ) => {
   if (snapshot?.status === "completed") {
@@ -68,7 +43,7 @@ const getLifecycleStatus = (
     return "已暂停"
   }
 
-  if (isJoiningVoice || voiceStatus.connecting) {
+  if (voiceStatus.connecting) {
     return "正在连接"
   }
 
@@ -91,33 +66,22 @@ const getStepProgressLabel = (snapshot: SessionSnapshot | null) => {
   return `第 ${snapshot.currentStepIndex + 1} 步 / 共 ${snapshot.totalSteps} 步`
 }
 
-const attachRemoteAudioTrack = (
-  track: RemoteTrack,
-  audioHost: HTMLDivElement | null
-) => {
-  const mediaElement = track.attach()
-
-  mediaElement.autoplay = true
-  mediaElement.setAttribute("playsinline", "true")
-
-  audioHost?.appendChild(mediaElement)
-
-  return mediaElement
-}
-
 export function App() {
-  const [isJoiningVoice, setIsJoiningVoice] = useState(false)
   const [voiceError, setVoiceError] = useState("")
-  const [voiceStatus, setVoiceStatus] = useState(initialVoiceStatus)
   const [politeAnnouncement, setPoliteAnnouncement] = useState("")
   const [assertiveAnnouncement, setAssertiveAnnouncement] = useState("")
-  const [connectResult, setConnectResult] =
-    useState<ConnectSessionResult | null>(null)
-  const roomRef = useRef<Room | null>(null)
-  const audioHostRef = useRef<HTMLDivElement | null>(null)
-  const attachedAudioRef = useRef(new Map<string, HTMLMediaElement>())
   const previousVoiceStatusRef = useRef(initialVoiceStatus)
   const previousTimersRef = useRef<CompanionTimer[]>([])
+  const {
+    audioHostRef,
+    connectResult,
+    disconnectRoom,
+    joinVoiceSession,
+    voiceActivityLevel,
+    voiceActivityState,
+    voiceError: roomVoiceError,
+    voiceStatus,
+  } = useLiveKitRoom()
   const {
     createError,
     createSessionForSelectedRecipe,
@@ -135,51 +99,10 @@ export function App() {
   } = useCookingSession({
     shouldSync: voiceStatus.connected,
   })
-
-  useEffect(() => {
-    const attachedAudio = attachedAudioRef.current
-
-    return () => {
-      const room = roomRef.current
-
-      roomRef.current = null
-
-      for (const [trackSid, mediaElement] of attachedAudio) {
-        mediaElement.remove()
-        attachedAudio.delete(trackSid)
-      }
-
-      if (room) {
-        room.removeAllListeners()
-        void room.disconnect()
-      }
-    }
-  }, [])
+  const isJoiningVoice = voiceStatus.connecting
 
   const selectedRecipe =
     recipes.find((recipe) => recipe.id === selectedRecipeId) ?? null
-
-  const clearAttachedAudio = () => {
-    for (const [trackSid, mediaElement] of attachedAudioRef.current) {
-      mediaElement.remove()
-      attachedAudioRef.current.delete(trackSid)
-    }
-  }
-
-  const disconnectRoom = async () => {
-    const room = roomRef.current
-
-    roomRef.current = null
-    clearAttachedAudio()
-
-    if (room) {
-      room.removeAllListeners()
-      await room.disconnect()
-    }
-
-    setVoiceStatus(initialVoiceStatus)
-    setConnectResult(null)
-  }
 
   const handleCreateSession = async () => {
     setVoiceError("")
@@ -201,164 +124,25 @@ export function App() {
       return
     }
 
-    setIsJoiningVoice(true)
     setVoiceError("")
     setPoliteAnnouncement("正在连接语音指导")
-    setVoiceStatus({
-      ...initialVoiceStatus,
-      connecting: true,
-    })
 
     try {
-      await disconnectRoom()
-
-      setVoiceStatus({
-        ...initialVoiceStatus,
-        connecting: true,
-      })
-
       const nextConnectResult = await connectSession(
         sessionResult.session.sessionId
       )
-      const room = new Room()
-      const isCurrentRoom = () => roomRef.current === room
-      const syncAgentReady = () => {
-        if (!isCurrentRoom()) {
-          return
-        }
+      const joined = await joinVoiceSession(nextConnectResult)
 
-        const agentReady = Array.from(room.remoteParticipants.values()).some(
-          (participant) => participant.isAgent
-        )
-
-        setVoiceStatus((currentStatus) => ({
-          ...currentStatus,
-          agentReady,
-        }))
+      if (joined) {
+        await refreshCompanionState()
       }
-
-      roomRef.current = room
-      setConnectResult(nextConnectResult)
-
-      room.on(RoomEvent.Connected, () => {
-        if (!isCurrentRoom()) {
-          return
-        }
-
-        setVoiceStatus((currentStatus) => ({
-          ...currentStatus,
-          connected: true,
-          connecting: false,
-        }))
-        syncAgentReady()
-      })
-
-      room.on(RoomEvent.Disconnected, () => {
-        if (!isCurrentRoom()) {
-          return
-        }
-
-        clearAttachedAudio()
-        setVoiceStatus(initialVoiceStatus)
-      })
-
-      room.on(RoomEvent.ParticipantConnected, () => {
-        syncAgentReady()
-      })
-
-      room.on(RoomEvent.ParticipantDisconnected, () => {
-        syncAgentReady()
-      })
-
-      room.on(RoomEvent.TrackSubscribed, (track) => {
-        if (!isCurrentRoom() || track.kind !== Track.Kind.Audio) {
-          return
-        }
-
-        const mediaElement = attachRemoteAudioTrack(track, audioHostRef.current)
-        const trackSid = track.sid
-
-        if (trackSid) {
-          attachedAudioRef.current.set(trackSid, mediaElement)
-        }
-
-        setVoiceStatus((currentStatus) => ({
-          ...currentStatus,
-          audioReady: room.canPlaybackAudio,
-        }))
-        syncAgentReady()
-      })
-
-      room.on(RoomEvent.TrackUnsubscribed, (track) => {
-        if (!isCurrentRoom() || track.kind !== Track.Kind.Audio) {
-          return
-        }
-
-        const trackSid = track.sid
-
-        if (!trackSid) {
-          return
-        }
-
-        const mediaElement = attachedAudioRef.current.get(trackSid)
-
-        if (mediaElement) {
-          track.detach(mediaElement)
-          mediaElement.remove()
-          attachedAudioRef.current.delete(trackSid)
-        }
-      })
-
-      room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
-        if (!isCurrentRoom()) {
-          return
-        }
-
-        setVoiceStatus((currentStatus) => ({
-          ...currentStatus,
-          audioReady: room.canPlaybackAudio,
-        }))
-      })
-
-      room.on(RoomEvent.MediaDevicesError, (error) => {
-        if (!isCurrentRoom()) {
-          return
-        }
-
-        setVoiceError(
-          buildMicRecoveryMessage(error.message, "浏览器暂时无法访问麦克风。")
-        )
-      })
-
-      await room.connect(
-        nextConnectResult.serverUrl,
-        nextConnectResult.participantToken
-      )
-      await room.startAudio()
-      await room.localParticipant.setMicrophoneEnabled(true)
-
-      setVoiceStatus((currentStatus) => ({
-        ...currentStatus,
-        agentReady: Array.from(room.remoteParticipants.values()).some(
-          (participant) => participant.isAgent
-        ),
-        audioReady: room.canPlaybackAudio,
-        connected: true,
-        connecting: false,
-        micEnabled: true,
-      }))
-
-      await refreshCompanionState()
     } catch (error) {
-      await disconnectRoom()
       setVoiceError(
         buildApiRecoveryMessage(
           error instanceof Error ? error.message : undefined,
           "暂时无法接通语音指导。"
         )
       )
-    } finally {
-      setIsJoiningVoice(false)
     }
   }
 
@@ -373,7 +157,6 @@ export function App() {
   const lifecycleStatus = getLifecycleStatus(
     displayedSnapshot,
     voiceStatus,
-    isJoiningVoice,
     isJoinedCurrentSession
   )
   const microphoneStatus = voiceStatus.micEnabled
@@ -388,6 +171,12 @@ export function App() {
   const tutorStatus = voiceStatus.agentReady
     ? "tutor 已接入"
     : "等待 tutor 接入"
+  const voiceActivityLabel =
+    voiceActivityState === "speaking"
+      ? "tutor 正在说话"
+      : voiceActivityState === "idle"
+        ? "tutor 在线待机"
+        : "暂未检测到远端音频"
   const visibleTimers = timers.filter((timer) => timer.status === "running")
 
   useEffect(() => {
@@ -469,6 +258,12 @@ export function App() {
       setVoiceError(syncError)
     }
   }, [syncError])
+
+  useEffect(() => {
+    if (roomVoiceError) {
+      setVoiceError(roomVoiceError)
+    }
+  }, [roomVoiceError])
 
   return (
     <main className="min-h-svh bg-[radial-gradient(circle_at_top,oklch(0.99_0.02_95),transparent_42%),linear-gradient(180deg,oklch(0.99_0.01_95),oklch(0.96_0.01_95))] px-4 py-6 text-foreground sm:px-6 sm:py-8">
@@ -599,6 +394,24 @@ export function App() {
                 </div>
                 <div className="rounded-xl border border-border/70 bg-background/90 px-3 py-2 text-sm sm:col-span-2">
                   {sessionJoinStatus}
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-border/70 bg-background/90 px-3 py-3">
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span>语音活动</span>
+                  <span
+                    className="text-muted-foreground"
+                    data-state={voiceActivityState}
+                  >
+                    {voiceActivityLabel}
+                  </span>
+                </div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-primary transition-[width]"
+                    style={{ width: `${voiceActivityLevel * 100}%` }}
+                  />
                 </div>
               </div>
 
