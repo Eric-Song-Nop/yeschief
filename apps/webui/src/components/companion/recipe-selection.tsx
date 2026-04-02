@@ -1,15 +1,8 @@
 import type { RecipeSummary } from "@yes-chief/shared"
 import { CheckCircle2, LoaderCircle, Soup } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 
@@ -40,57 +33,19 @@ export function RecipeSelection({
   recipesError = "",
   selectedRecipeId,
 }: RecipeSelectionProps) {
-  const selectedRecipe =
-    recipes.find((recipe) => recipe.id === selectedRecipeId) ?? null
-
   return (
     <Card className="border-border/70 bg-card/96 shadow-lg shadow-primary/5">
-      <CardHeader className="gap-4">
+      <CardHeader className="gap-3">
         <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
           <Soup className="size-3.5" />
           Discovery
         </div>
-        <div className="space-y-2">
-          <CardTitle className="text-2xl md:text-3xl">
-            先选一道菜，再接通语音 tutor
-          </CardTitle>
-          <CardDescription className="max-w-2xl">
-            companion 会先帮你进入会话，真正的操作主流程仍然由语音指导推进。
-          </CardDescription>
-        </div>
+        <CardTitle className="text-2xl md:text-3xl">
+          先选一道菜，再接通语音 tutor
+        </CardTitle>
       </CardHeader>
 
       <CardContent className="space-y-5">
-        <div className="rounded-2xl border border-border/70 bg-muted/35 p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                当前选择
-              </div>
-              {selectedRecipe ? (
-                <div className="mt-2">
-                  <div className="text-xl font-medium">
-                    {selectedRecipe.title}
-                  </div>
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    共 {selectedRecipe.stepCount}{" "}
-                    步，开始后会从第一步进入语音指导。
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-2 text-sm text-muted-foreground">
-                  先从下方选择一道菜，再开始本次做菜会话。
-                </div>
-              )}
-            </div>
-            {selectedRecipe ? (
-              <Badge variant="secondary">已选择</Badge>
-            ) : (
-              <Badge variant="outline">待选择</Badge>
-            )}
-          </div>
-        </div>
-
         {recipesError ? (
           <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
             {recipesError}
@@ -138,7 +93,7 @@ export function RecipeSelection({
                           {recipe.title}
                         </div>
                         <div className="mt-2 text-sm text-muted-foreground">
-                          共 {recipe.stepCount} 步，适合跟着语音逐步推进。
+                          共 {recipe.stepCount} 步
                         </div>
                       </div>
                       {isSelected ? (
