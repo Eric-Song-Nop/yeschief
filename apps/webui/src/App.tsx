@@ -568,14 +568,6 @@ export function App() {
       />
     ) : (
       <div className="space-y-10">
-        <SessionRecoveryList
-          error={recoveryError}
-          isLoading={isLoadingRecoverySessions}
-          isLoadingSession={isLoadingSession}
-          onLoadSession={(sessionId) => void handleLoadSession(sessionId)}
-          sessions={recoverySessions}
-        />
-
         <RecipeSelection
           createError={createError}
           isCreatingSession={isCreatingSession || isLoadingSession}
@@ -585,6 +577,14 @@ export function App() {
           recipes={recipes}
           recipesError={recipesError}
           selectedRecipeId={selectedRecipeId}
+        />
+
+        <SessionRecoveryList
+          error={recoveryError}
+          isLoading={isLoadingRecoverySessions}
+          isLoadingSession={isLoadingSession}
+          onLoadSession={(sessionId) => void handleLoadSession(sessionId)}
+          sessions={recoverySessions}
         />
       </div>
     )

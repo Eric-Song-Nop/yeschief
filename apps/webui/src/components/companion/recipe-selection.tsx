@@ -27,7 +27,7 @@ export function RecipeSelection({
   selectedRecipeId,
 }: RecipeSelectionProps) {
   return (
-    <div className="mx-auto max-w-4xl space-y-16 py-12">
+    <div className="mx-auto max-w-4xl space-y-16 pt-12 md:pt-20">
       {/* Hero Header */}
       <div className="space-y-4">
         <div className="text-xs font-semibold uppercase tracking-[0.22em] text-primary/70">
@@ -37,7 +37,7 @@ export function RecipeSelection({
           想吃什么？
         </h1>
         <p className="text-xl font-medium text-muted-foreground/60 md:text-2xl">
-          选择一个菜谱，或者从上方恢复之前的 session。
+          选择一个菜谱，或者从下方继续之前的会话。
         </p>
       </div>
 
