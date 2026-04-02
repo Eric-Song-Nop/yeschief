@@ -4,6 +4,7 @@ import type {
   DeleteSessionRoomResult,
   GetSessionResult,
   GetSessionTimersResult,
+  ListSessionsResult,
   RecipeSummary,
   SessionCommandResponse,
   SessionTimer,
@@ -69,6 +70,8 @@ export const createSession = (recipeId: string) =>
     body: JSON.stringify({ recipeId }),
     method: "POST",
   })
+
+export const listSessions = () => requestJson<ListSessionsResult>("/sessions")
 
 export const connectSession = (sessionId: string) =>
   requestJson<ConnectSessionResult>(`/sessions/${sessionId}/connect`, {

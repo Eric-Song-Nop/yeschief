@@ -1,12 +1,14 @@
 import type {
   CreateSessionResult,
   RecipeSummary,
+  SessionRecoveryItem,
   SessionSnapshot,
 } from "@yes-chief/shared"
 import { useEffect, useRef, useState } from "react"
 import {
   createSession,
   getSession,
+  listSessions,
   listPresetRecipes,
   listSessionTimers,
   toCompanionTimers,
@@ -28,6 +30,9 @@ const buildApiRecoveryMessage = (
 
 export function useCookingSession({ shouldSync }: UseCookingSessionOptions) {
   const [recipes, setRecipes] = useState<RecipeSummary[]>([])
+  const [recoverySessions, setRecoverySessions] = useState<
+    SessionRecoveryItem[]
+  >([])
   const [selectedRecipeId, setSelectedRecipeId] = useState("")
   const [sessionResult, setSessionResult] =
     useState<CreateSessionResult | null>(null)
@@ -36,7 +41,11 @@ export function useCookingSession({ shouldSync }: UseCookingSessionOptions) {
   )
   const [timers, setTimers] = useState<CompanionTimer[]>([])
   const [isLoadingRecipes, setIsLoadingRecipes] = useState(true)
+  const [isLoadingRecoverySessions, setIsLoadingRecoverySessions] =
+    useState(true)
+  const [isLoadingSession, setIsLoadingSession] = useState(false)
   const [recipesError, setRecipesError] = useState("")
+  const [recoveryError, setRecoveryError] = useState("")
   const [isCreatingSession, setIsCreatingSession] = useState(false)
   const [createError, setCreateError] = useState("")
   const [syncError, setSyncError] = useState("")
@@ -92,6 +101,40 @@ export function useCookingSession({ shouldSync }: UseCookingSessionOptions) {
     return () => {
       cancelled = true
     }
+  }, [])
+
+  const refreshRecoverySessions = async () => {
+    setIsLoadingRecoverySessions(true)
+    setRecoveryError("")
+
+    try {
+      const result = await listSessions()
+
+      if (!isMountedRef.current) {
+        return
+      }
+
+      setRecoverySessions(result.sessions)
+    } catch (error) {
+      if (!isMountedRef.current) {
+        return
+      }
+
+      setRecoveryError(
+        buildApiRecoveryMessage(
+          error instanceof Error ? error.message : undefined,
+          "暂时无法加载可恢复会话。"
+        )
+      )
+    } finally {
+      if (isMountedRef.current) {
+        setIsLoadingRecoverySessions(false)
+      }
+    }
+  }
+
+  useEffect(() => {
+    void refreshRecoverySessions()
   }, [])
 
   const refreshCompanionState = async () => {
@@ -215,6 +258,50 @@ export function useCookingSession({ shouldSync }: UseCookingSessionOptions) {
     }
   }
 
+  const loadSession = async (nextSessionId: string) => {
+    setIsLoadingSession(true)
+    setCreateError("")
+    setSyncError("")
+
+    try {
+      const [sessionResponse, timersResponse] = await Promise.all([
+        getSession(nextSessionId),
+        listSessionTimers(nextSessionId),
+      ])
+
+      if (!isMountedRef.current) {
+        return null
+      }
+
+      const nextSessionResult = {
+        session: sessionResponse.session,
+      }
+
+      setSessionResult(nextSessionResult)
+      setLatestSnapshot(sessionResponse.session)
+      setTimers(toCompanionTimers(timersResponse.timers))
+
+      return nextSessionResult
+    } catch (error) {
+      if (!isMountedRef.current) {
+        return null
+      }
+
+      setSyncError(
+        buildApiRecoveryMessage(
+          error instanceof Error ? error.message : undefined,
+          "暂时无法恢复这个会话。"
+        )
+      )
+
+      return null
+    } finally {
+      if (isMountedRef.current) {
+        setIsLoadingSession(false)
+      }
+    }
+  }
+
   const resetSessionState = () => {
     setCreateError("")
     setLatestSnapshot(null)
@@ -222,17 +309,24 @@ export function useCookingSession({ shouldSync }: UseCookingSessionOptions) {
     setSelectedRecipeId("")
     setSyncError("")
     setTimers([])
+    void refreshRecoverySessions()
   }
 
   return {
     createError,
     createSessionForSelectedRecipe,
     isCreatingSession,
+    isLoadingRecoverySessions,
     isLoadingRecipes,
+    isLoadingSession,
     latestSnapshot,
+    loadSession,
     recipes,
+    recoveryError,
+    recoverySessions,
     recipesError,
     refreshCompanionState,
+    refreshRecoverySessions,
     resetSessionState,
     selectedRecipeId,
     sessionResult,
