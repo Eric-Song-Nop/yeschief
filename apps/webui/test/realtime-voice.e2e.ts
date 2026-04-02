@@ -1,8 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
 const API_BASE_URL = "http://127.0.0.1:3300"
-const emptyTimerStateText =
-  "当前没有运行中的计时器。这是正常状态，等你用语音创建后会显示在这里。"
+const emptyTimerStateText = "无活跃计时器"
 const missingLiveKitEnv = (process.env.PLAYWRIGHT_MISSING_LIVEKIT_ENV ?? "")
   .split(",")
   .filter((value) => value.length > 0)
@@ -34,9 +33,9 @@ const waitForPoliteAnnouncement = async (liveRegion: Locator, text: string) => {
 
 const expectDiscoveryStage = async (page: Page) => {
   await expect(
-    page.locator("header").getByText("Discovery", { exact: true })
+    page.getByRole("heading", { name: "恢复已有 session" })
   ).toBeVisible()
-  await expect(page.getByText("当前选择", { exact: true })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "想吃什么？" })).toBeVisible()
 }
 
 const createSessionFromDiscovery = async (
@@ -68,10 +67,8 @@ const createSessionFromDiscovery = async (
 
   expect(createResponse.ok()).toBeTruthy()
   await waitForPoliteAnnouncement(politeLiveRegion, "session 已创建")
-  await expect(
-    page.locator("header").getByText("Active", { exact: true })
-  ).toBeVisible()
-  await expect(page.getByText("当前步骤", { exact: true })).toBeVisible()
+  await expect(page.getByText("进行中", { exact: true }).first()).toBeVisible()
+  await expect(page.getByText("连接状态", { exact: true })).toBeVisible()
 
   return createPayload.session.sessionId
 }
@@ -104,12 +101,9 @@ const joinVoiceForSession = async (
 
   await waitForPoliteAnnouncement(politeLiveRegion, "正在连接语音指导")
   await expect(
-    mainPanel.getByText("麦克风已开启", { exact: true }).first()
-  ).toBeVisible({
-    timeout: 20_000,
-  })
-  await expect(
-    mainPanel.getByText("浏览器音频已就绪", { exact: true }).first()
+    mainPanel.getByText("麦克风已开启 • 浏览器音频已就绪", {
+      exact: true,
+    })
   ).toBeVisible({
     timeout: 30_000,
   })
@@ -137,7 +131,7 @@ test("voice-first companion covers create join timer lifecycle, summary, and new
 
   await expect(
     page.getByRole("heading", {
-      name: "跟着语音 tutor 做菜",
+      name: "想吃什么？",
     })
   ).toBeVisible()
   await expect(politeLiveRegion).toHaveCount(1)

@@ -12,7 +12,7 @@
     "format:check": "oxfmt --config ../../.oxfmtrc.json --ignore-path ../../.gitignore --ignore-path ../../.oxfmtignore --check .",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
-    "test:e2e:realtime": "playwright test test/realtime-voice.e2e.ts"
+    "test:e2e:realtime": "playwright test test/realtime-voice.e2e.ts test/recovery-idempotency.e2e.ts"
   },
   "dependencies": {
     "@fontsource-variable/roboto": "^5.2.10",

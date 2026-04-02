@@ -12,6 +12,11 @@ type CreateSessionResponse = {
   }
 }
 
+type ConnectSessionResponse = {
+  roomName: string
+  sessionId: string
+}
+
 const waitForPoliteAnnouncement = async (liveRegion: Locator, text: string) => {
   await expect
     .poll(async () => (await liveRegion.textContent()) ?? "", {
@@ -70,4 +75,62 @@ test.fixme("shows a 重新加入 entry after disconnect recovery exhausts retrie
   await page.goto("/")
   await page.reload()
   await expect(page.getByRole("button", { name: "重新加入" })).toBeVisible()
+})
+
+test("repeated connect and end_session keep the same sessionId and completed summary", async ({
+  page,
+}) => {
+  test.skip(
+    missingLiveKitEnv.length > 0,
+    `Missing LiveKit env: ${missingLiveKitEnv.join(", ")}`
+  )
+
+  const politeLiveRegion = page.locator('.sr-only[aria-live="polite"]')
+  const created = await createSessionViaApi(page)
+
+  const firstConnect = await page.request.post(
+    `${API_BASE_URL}/sessions/${created.session.sessionId}/connect`
+  )
+  const secondConnect = await page.request.post(
+    `${API_BASE_URL}/sessions/${created.session.sessionId}/connect`
+  )
+
+  expect(firstConnect.ok()).toBeTruthy()
+  expect(secondConnect.ok()).toBeTruthy()
+  expect(((await firstConnect.json()) as ConnectSessionResponse).sessionId).toBe(
+    created.session.sessionId
+  )
+  expect(((await secondConnect.json()) as ConnectSessionResponse).sessionId).toBe(
+    created.session.sessionId
+  )
+
+  const firstEnd = await page.request.post(
+    `${API_BASE_URL}/sessions/${created.session.sessionId}/commands`,
+    {
+      data: {
+        type: "end_session",
+      },
+    }
+  )
+  const secondEnd = await page.request.post(
+    `${API_BASE_URL}/sessions/${created.session.sessionId}/commands`,
+    {
+      data: {
+        type: "end_session",
+      },
+    }
+  )
+
+  expect(firstEnd.ok()).toBeTruthy()
+  expect(secondEnd.ok()).toBeTruthy()
+
+  await page.goto("/")
+  await page.reload()
+
+  await expect(page.getByRole("button", { name: "查看总结" }).first()).toBeVisible()
+  await page.getByRole("button", { name: "查看总结" }).first().click()
+
+  await waitForPoliteAnnouncement(politeLiveRegion, "已恢复完成会话")
+  await expect(page.getByText(created.session.recipeTitle)).toBeVisible()
+  await expect(page.getByText("已完成")).toBeVisible()
 })
