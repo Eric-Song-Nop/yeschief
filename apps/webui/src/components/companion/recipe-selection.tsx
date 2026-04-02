@@ -97,7 +97,11 @@ export function RecipeSelection({
           </div>
         ) : null}
 
-        <div className="grid gap-3 md:grid-cols-2">
+        <div
+          aria-label="选择菜谱"
+          className="grid gap-3 md:grid-cols-2"
+          role="radiogroup"
+        >
           {isLoadingRecipes
             ? Array.from({ length: 4 }, (_, index) => (
                 <div
@@ -114,6 +118,8 @@ export function RecipeSelection({
 
                 return (
                   <button
+                    aria-checked={isSelected}
+                    aria-label={`选择菜谱 ${recipe.title}`}
                     aria-pressed={isSelected}
                     className={cn(
                       "rounded-3xl border p-4 text-left transition-all outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
@@ -123,6 +129,7 @@ export function RecipeSelection({
                     )}
                     key={recipe.id}
                     onClick={() => onSelectRecipe(recipe.id)}
+                    role="radio"
                     type="button"
                   >
                     <div className="flex items-start justify-between gap-3">

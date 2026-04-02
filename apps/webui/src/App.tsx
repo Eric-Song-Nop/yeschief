@@ -11,6 +11,7 @@ import { SessionDashboard } from "@/components/companion/session-dashboard"
 import { SessionSummary } from "@/components/companion/session-summary"
 import { TimerList } from "@/components/companion/timer-list"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useCookingSession } from "@/hooks/use-cooking-session"
 import {
@@ -345,6 +346,18 @@ export function App() {
       audioStatus={audioStatus}
       lifecycleStatus={lifecycleStatus}
       microphoneStatus={microphoneStatus}
+      primaryAction={
+        !isJoinedCurrentSession ? (
+          <Button
+            className="min-h-12 w-full text-base sm:w-auto"
+            disabled={!sessionResult || isJoiningVoice}
+            onClick={() => void handleJoinVoice()}
+            variant="secondary"
+          >
+            {isJoiningVoice ? "正在接通" : "接通语音指导"}
+          </Button>
+        ) : null
+      }
       sessionJoinStatus={sessionJoinStatus}
       tutorStatus={tutorStatus}
       voiceActivityLabel={voiceActivityLabel}

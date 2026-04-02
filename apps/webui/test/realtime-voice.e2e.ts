@@ -2,7 +2,7 @@ import { expect, test, type Locator } from "@playwright/test"
 
 const API_BASE_URL = "http://127.0.0.1:3300"
 const emptyTimerStateText =
-  "当前没有正在计时的项目。需要时直接对 tutor 说“帮我设一个 timer”。"
+  "当前没有运行中的计时器。这是正常状态，等你用语音创建后会显示在这里。"
 const missingLiveKitEnv = (process.env.PLAYWRIGHT_MISSING_LIVEKIT_ENV ?? "")
   .split(",")
   .filter((value) => value.length > 0)
@@ -41,9 +41,9 @@ test("voice-first companion covers create join timer lifecycle and summary", asy
     `Missing LiveKit env: ${missingLiveKitEnv.join(", ")}`
   )
 
-  const politeLiveRegion = page.locator('[aria-live="polite"]')
-  const assertiveLiveRegion = page.locator('[aria-live="assertive"]')
-  const companionPanel = page.locator("aside")
+  const politeLiveRegion = page.locator('.sr-only[aria-live="polite"]')
+  const assertiveLiveRegion = page.locator('.sr-only[aria-live="assertive"]')
+  const mainPanel = page.locator("main")
 
   await page.goto("/")
 
@@ -53,15 +53,13 @@ test("voice-first companion covers create join timer lifecycle and summary", asy
     })
   ).toBeVisible()
   await expect(
-    page.getByRole("radiogroup", {
-      name: "选择菜谱",
-    })
+    page.locator("header").getByText("Discovery", { exact: true })
   ).toBeVisible()
-  await expect(
-    page.getByRole("radio", {
-      name: "选择菜谱 Garlic Butter Rice",
-    })
-  ).toHaveAttribute("aria-checked", "true")
+  await expect(page.getByText("当前选择", { exact: true })).toBeVisible()
+  const recipeChoices = page.getByRole("radio")
+  await expect(page.getByRole("radiogroup", { name: "选择菜谱" })).toBeVisible()
+  await expect(recipeChoices.first()).toBeVisible()
+  await recipeChoices.first().click()
   await expect(politeLiveRegion).toHaveCount(1)
   await expect(assertiveLiveRegion).toHaveCount(1)
 
@@ -83,6 +81,9 @@ test("voice-first companion covers create join timer lifecycle and summary", asy
 
   expect(createResponse.ok()).toBeTruthy()
   await waitForPoliteAnnouncement(politeLiveRegion, "session 已创建")
+  await expect(page.locator("header").getByText("Active", { exact: true })).toBeVisible()
+  await expect(page.getByText("当前步骤", { exact: true })).toBeVisible()
+  await expect(page.getByText("连接状态", { exact: true })).toBeVisible()
 
   const connectResponsePromise = page.waitForResponse(
     (response) =>
@@ -106,20 +107,29 @@ test("voice-first companion covers create join timer lifecycle and summary", asy
 
   await waitForPoliteAnnouncement(politeLiveRegion, "正在连接语音指导")
   await expect(
-    companionPanel.getByText("麦克风已开启", { exact: true })
+    mainPanel.getByText("麦克风已开启", { exact: true }).first()
   ).toBeVisible({
     timeout: 20_000,
   })
   await expect(
-    companionPanel.getByText("浏览器音频已就绪", { exact: true })
+    mainPanel.getByText("浏览器音频已就绪", { exact: true }).first()
   ).toBeVisible({
     timeout: 30_000,
   })
   await expect(
-    companionPanel.getByText("已加入当前会话", { exact: true })
+    mainPanel.getByText("已加入当前会话", { exact: true }).first()
   ).toBeVisible({
     timeout: 30_000,
   })
+
+  const voiceActivityVisualizer = page.getByLabel("tutor 语音活动")
+  await expect(voiceActivityVisualizer).toBeVisible({
+    timeout: 30_000,
+  })
+  await expect(voiceActivityVisualizer).toHaveAttribute(
+    "data-voice-activity-state",
+    /disconnected|idle|speaking/u
+  )
 
   const createTimerResponse = await request.post(
     `${API_BASE_URL}/sessions/${sessionId}/commands`,
@@ -139,7 +149,7 @@ test("voice-first companion covers create join timer lifecycle and summary", asy
   expect(timerId).toBeTruthy()
 
   await waitForPoliteAnnouncement(politeLiveRegion, "已新建计时器")
-  await expect(page.getByText("焖饭")).toBeVisible({
+  await expect(page.getByText("焖饭", { exact: true }).first()).toBeVisible({
     timeout: 10_000,
   })
 
@@ -170,11 +180,11 @@ test("voice-first companion covers create join timer lifecycle and summary", asy
 
   expect(endSessionResponse.ok()).toBeTruthy()
 
-  await expect(page.getByText("本次做菜总结")).toBeVisible({
+  await expect(page.getByText("Garlic Butter Rice 已完成")).toBeVisible({
     timeout: 10_000,
   })
-  await expect(page.getByText("完成菜谱")).toBeVisible()
-  await expect(page.getByText("结束时间")).toBeVisible()
-  await expect(page.getByText("结束于第几步")).toBeVisible()
-  await expect(page.getByText("计时器结果")).toBeVisible()
+  await expect(page.getByText("完成时间", { exact: true })).toBeVisible()
+  await expect(page.getByText("最终进度", { exact: true })).toBeVisible()
+  await expect(page.getByText("已到点计时器", { exact: true })).toBeVisible()
+  await expect(page.getByText("已取消计时器", { exact: true }).first()).toBeVisible()
 })

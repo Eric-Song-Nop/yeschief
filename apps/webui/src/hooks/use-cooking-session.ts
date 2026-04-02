@@ -44,6 +44,8 @@ export function useCookingSession({ shouldSync }: UseCookingSessionOptions) {
   const sessionId = sessionResult?.session.sessionId
 
   useEffect(() => {
+    isMountedRef.current = true
+
     return () => {
       isMountedRef.current = false
     }

@@ -409,6 +409,8 @@ export function useLiveKitRoom() {
   }
 
   useEffect(() => {
+    isMountedRef.current = true
+
     return () => {
       isMountedRef.current = false
       void disconnectRoom()
