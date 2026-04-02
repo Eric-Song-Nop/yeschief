@@ -12,6 +12,7 @@ export {
   type CreateSessionInput,
   type CreateSessionResult,
   type GetSessionResult,
+  type SessionSummary,
   type GetSessionTimersResult,
   type SessionCommandRequest,
   type SessionCommandResponse,

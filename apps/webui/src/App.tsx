@@ -1,13 +1,12 @@
 import type {
   ConnectSessionResult,
   CreateSessionResult,
-  SessionSnapshot,
-  SessionTimer,
   RecipeSummary,
+  SessionSnapshot,
 } from "@yes-chief/shared"
 import { Track, Room, RoomEvent, type RemoteTrack } from "livekit-client"
-import { useEffect, useRef, useState } from "react"
 import { LoaderCircle, Soup } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
   connectSession,
@@ -15,6 +14,8 @@ import {
   getSession,
   listPresetRecipes,
   listSessionTimers,
+  toCompanionTimers,
+  type CompanionTimer,
 } from "@/lib/api"
 
 type VoiceStatus = {
@@ -33,15 +34,70 @@ const initialVoiceStatus: VoiceStatus = {
   micEnabled: false,
 }
 
-const formatRemainingTime = (remainingSec?: number) => {
-  if (typeof remainingSec !== "number" || Number.isNaN(remainingSec)) {
-    return "unknown"
+const buildApiRecoveryMessage = (
+  message: string | undefined,
+  fallback: string
+) => {
+  const detail = message?.trim() || fallback
+
+  return `请确认 API 与 LiveKit 已启动后重试。 ${detail}`
+}
+
+const buildMicRecoveryMessage = (
+  message: string | undefined,
+  fallback: string
+) => {
+  const detail = message?.trim() || fallback
+
+  return `请检查麦克风权限后重试。 ${detail}`
+}
+
+const getTimerStatusLabel = (status: CompanionTimer["status"]) => {
+  switch (status) {
+    case "cancelled":
+      return "已取消"
+    case "expired":
+      return "已到点"
+    case "running":
+      return "进行中"
+  }
+}
+
+const getLifecycleStatus = (
+  snapshot: SessionSnapshot | null,
+  voiceStatus: VoiceStatus,
+  isJoiningVoice: boolean,
+  isJoinedCurrentSession: boolean
+) => {
+  if (snapshot?.status === "completed") {
+    return "已结束"
   }
 
-  const minutes = Math.floor(remainingSec / 60)
-  const seconds = remainingSec % 60
+  if (snapshot?.status === "paused") {
+    return "已暂停"
+  }
 
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`
+  if (isJoiningVoice || voiceStatus.connecting) {
+    return "正在连接"
+  }
+
+  if (isJoinedCurrentSession && voiceStatus.agentReady) {
+    return "语音已接通"
+  }
+
+  if (isJoinedCurrentSession) {
+    return "等待 tutor 接入"
+  }
+
+  return "准备开始"
+}
+
+const getStepProgressLabel = (snapshot: SessionSnapshot | null) => {
+  if (!snapshot) {
+    return "开始这道菜后，这里会显示当前进度。"
+  }
+
+  return `第 ${snapshot.currentStepIndex + 1} 步 / 共 ${snapshot.totalSteps} 步`
 }
 
 const attachRemoteAudioTrack = (
@@ -66,7 +122,7 @@ export function App() {
   const [latestSnapshot, setLatestSnapshot] = useState<SessionSnapshot | null>(
     null
   )
-  const [timers, setTimers] = useState<SessionTimer[]>([])
+  const [timers, setTimers] = useState<CompanionTimer[]>([])
   const [isLoadingRecipes, setIsLoadingRecipes] = useState(true)
   const [recipesError, setRecipesError] = useState("")
   const [isCreatingSession, setIsCreatingSession] = useState(false)
@@ -74,11 +130,15 @@ export function App() {
   const [createError, setCreateError] = useState("")
   const [voiceError, setVoiceError] = useState("")
   const [voiceStatus, setVoiceStatus] = useState(initialVoiceStatus)
+  const [politeAnnouncement, setPoliteAnnouncement] = useState("")
+  const [assertiveAnnouncement, setAssertiveAnnouncement] = useState("")
   const [connectResult, setConnectResult] =
     useState<ConnectSessionResult | null>(null)
   const roomRef = useRef<Room | null>(null)
   const audioHostRef = useRef<HTMLDivElement | null>(null)
   const attachedAudioRef = useRef(new Map<string, HTMLMediaElement>())
+  const previousVoiceStatusRef = useRef(initialVoiceStatus)
+  const previousTimersRef = useRef<CompanionTimer[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -104,7 +164,10 @@ export function App() {
         }
 
         setRecipesError(
-          error instanceof Error ? error.message : "加载 preset recipes 失败。"
+          buildApiRecoveryMessage(
+            error instanceof Error ? error.message : undefined,
+            "暂时无法加载可选菜谱。"
+          )
         )
       } finally {
         if (!cancelled) {
@@ -161,16 +224,17 @@ export function App() {
         }
 
         setLatestSnapshot(sessionResponse.session)
-        setTimers(timersResponse.timers)
+        setTimers(toCompanionTimers(timersResponse.timers))
       } catch (error) {
         if (cancelled) {
           return
         }
 
         setVoiceError(
-          error instanceof Error
-            ? error.message
-            : "同步 companion 状态失败。"
+          buildApiRecoveryMessage(
+            error instanceof Error ? error.message : undefined,
+            "暂时无法同步当前会话。"
+          )
         )
       }
     }
@@ -214,7 +278,7 @@ export function App() {
 
   const handleCreateSession = async () => {
     if (!selectedRecipeId) {
-      setCreateError("请先选择一个 recipe。")
+      setCreateError("请先选择一道菜再开始。")
       return
     }
 
@@ -224,15 +288,18 @@ export function App() {
 
     try {
       await disconnectRoom()
-
       const result = await createSession(selectedRecipeId)
 
       setSessionResult(result)
       setLatestSnapshot(result.session)
-      setTimers(result.session.activeTimers)
+      setTimers(toCompanionTimers(result.session.activeTimers))
+      setPoliteAnnouncement("session 已创建")
     } catch (error) {
       setCreateError(
-        error instanceof Error ? error.message : "创建 session 失败。"
+        buildApiRecoveryMessage(
+          error instanceof Error ? error.message : undefined,
+          "暂时无法开始这道菜。"
+        )
       )
     } finally {
       setIsCreatingSession(false)
@@ -246,6 +313,7 @@ export function App() {
 
     setIsJoiningVoice(true)
     setVoiceError("")
+    setPoliteAnnouncement("正在连接语音指导")
     setVoiceStatus({
       ...initialVoiceStatus,
       connecting: true,
@@ -259,7 +327,9 @@ export function App() {
         connecting: true,
       })
 
-      const nextConnectResult = await connectSession(sessionResult.session.sessionId)
+      const nextConnectResult = await connectSession(
+        sessionResult.session.sessionId
+      )
       const room = new Room()
       const isCurrentRoom = () => roomRef.current === room
       const syncAgentReady = () => {
@@ -365,7 +435,9 @@ export function App() {
           return
         }
 
-        setVoiceError(error.message)
+        setVoiceError(
+          buildMicRecoveryMessage(error.message, "浏览器暂时无法访问麦克风。")
+        )
       })
 
       await room.connect(
@@ -392,11 +464,14 @@ export function App() {
       ])
 
       setLatestSnapshot(sessionResponse.session)
-      setTimers(timersResponse.timers)
+      setTimers(toCompanionTimers(timersResponse.timers))
     } catch (error) {
       await disconnectRoom()
       setVoiceError(
-        error instanceof Error ? error.message : "连接 voice session 失败。"
+        buildApiRecoveryMessage(
+          error instanceof Error ? error.message : undefined,
+          "暂时无法接通语音指导。"
+        )
       )
     } finally {
       setIsJoiningVoice(false)
@@ -404,170 +479,197 @@ export function App() {
   }
 
   const displayedSnapshot = latestSnapshot ?? sessionResult?.session ?? null
+  const displayedSummary = displayedSnapshot?.summary ?? null
+  const isJoinedCurrentSession = Boolean(
+    connectResult &&
+    displayedSnapshot &&
+    voiceStatus.connected &&
+    connectResult.sessionId === displayedSnapshot.sessionId
+  )
+  const lifecycleStatus = getLifecycleStatus(
+    displayedSnapshot,
+    voiceStatus,
+    isJoiningVoice,
+    isJoinedCurrentSession
+  )
+  const microphoneStatus = voiceStatus.micEnabled
+    ? "麦克风已开启"
+    : "麦克风未开启"
+  const audioStatus = voiceStatus.audioReady
+    ? "浏览器音频已就绪"
+    : "等待浏览器播放音频"
+  const sessionJoinStatus = isJoinedCurrentSession
+    ? "已加入当前会话"
+    : "尚未加入当前会话"
+  const tutorStatus = voiceStatus.agentReady
+    ? "tutor 已接入"
+    : "等待 tutor 接入"
+  const visibleTimers = timers.filter((timer) => timer.status === "running")
+
+  useEffect(() => {
+    const previousVoiceStatus = previousVoiceStatusRef.current
+
+    if (!previousVoiceStatus.audioReady && voiceStatus.audioReady) {
+      setPoliteAnnouncement("浏览器音频已就绪")
+    } else if (
+      !previousVoiceStatus.connected &&
+      voiceStatus.connected &&
+      !voiceStatus.audioReady
+    ) {
+      setPoliteAnnouncement("等待浏览器播放音频")
+    }
+
+    if (!previousVoiceStatus.agentReady && voiceStatus.agentReady) {
+      setPoliteAnnouncement("tutor 已接入")
+    }
+
+    if (!previousVoiceStatus.connected && isJoinedCurrentSession) {
+      setPoliteAnnouncement("语音已接通")
+    }
+
+    previousVoiceStatusRef.current = voiceStatus
+  }, [isJoinedCurrentSession, voiceStatus])
+
+  useEffect(() => {
+    const previousTimers = previousTimersRef.current
+
+    for (const timer of timers) {
+      const previousTimer = previousTimers.find(
+        (currentTimer) => currentTimer.timerId === timer.timerId
+      )
+
+      if (!previousTimer) {
+        setPoliteAnnouncement("已新建计时器")
+        previousTimersRef.current = timers
+        return
+      }
+
+      if (previousTimer.status !== timer.status) {
+        if (timer.status === "cancelled") {
+          setPoliteAnnouncement("已取消计时器")
+          previousTimersRef.current = timers
+          return
+        }
+
+        if (timer.status === "expired") {
+          setPoliteAnnouncement("timer 已到点")
+          previousTimersRef.current = timers
+          return
+        }
+      }
+    }
+
+    previousTimersRef.current = timers
+  }, [timers])
+
+  useEffect(() => {
+    if (recipesError) {
+      setAssertiveAnnouncement(recipesError)
+    }
+  }, [recipesError])
+
+  useEffect(() => {
+    if (createError) {
+      setAssertiveAnnouncement(createError)
+    }
+  }, [createError])
+
+  useEffect(() => {
+    if (voiceError) {
+      setAssertiveAnnouncement(voiceError)
+    }
+  }, [voiceError])
 
   return (
-    <main className="min-h-svh bg-[radial-gradient(circle_at_top,oklch(0.99_0.02_95),transparent_45%),linear-gradient(180deg,oklch(0.99_0.01_95),oklch(0.97_0.01_95))] px-6 py-10 text-foreground">
-      <div className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-        <section className="rounded-3xl border border-border/70 bg-card/95 p-6 shadow-sm backdrop-blur">
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-                <Soup className="size-3.5" />
-                Phase 2 Realtime Voice Guidance
-              </div>
-              <div>
-                <h1 className="font-heading text-3xl font-semibold tracking-tight">
-                  创建 cooking session 并接通实时语音 tutor
-                </h1>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                  这个 companion 页面现在承担最小可用的 voice 入口：创建 session、
-                  请求 connect token、加入 LiveKit room，并投影当前步骤与 timer 状态。
-                </p>
-              </div>
+    <main className="min-h-svh bg-[radial-gradient(circle_at_top,oklch(0.99_0.02_95),transparent_42%),linear-gradient(180deg,oklch(0.99_0.01_95),oklch(0.96_0.01_95))] px-4 py-6 text-foreground sm:px-6 sm:py-8">
+      <div className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[1.02fr_0.98fr]">
+        <aside className="order-1 rounded-3xl border border-border/70 bg-card/95 p-5 shadow-sm backdrop-blur sm:p-6">
+          <div className="space-y-4">
+            <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+              <Soup className="size-3.5" />
+              Yes Chief Companion
             </div>
-            <div className="rounded-2xl border border-border/70 bg-muted/60 px-4 py-3 text-right">
+
+            <div className="space-y-3">
+              <h1 className="font-heading text-2xl font-semibold tracking-tight text-balance md:text-4xl">
+                跟着语音 tutor 做菜
+              </h1>
+              <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+                先开始这道菜，再接通语音指导。页面只负责辅助查看当前进度、连接状态和结束总结。
+              </p>
+            </div>
+
+            <details className="rounded-2xl border border-border/70 bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+              <summary className="cursor-pointer list-none font-medium text-foreground">
+                开发信息
+              </summary>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                    API 地址
+                  </div>
+                  <div className="mt-1 break-all font-mono text-xs text-foreground">
+                    {import.meta.env.VITE_API_BASE_URL ??
+                      "http://localhost:3000"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                    当前会话
+                  </div>
+                  <div className="mt-1 break-all font-mono text-xs text-foreground">
+                    {displayedSnapshot?.sessionId ?? "尚未开始"}
+                  </div>
+                </div>
+              </div>
+            </details>
+          </div>
+
+          <div className="mt-6 space-y-4">
+            <div className="rounded-2xl border border-border/70 bg-muted/35 p-4">
               <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                API Base
+                当前选择
               </div>
-              <div className="mt-1 font-mono text-sm">
-                {import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000"}
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-8 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                Preset Recipes
-              </h2>
-              {isLoadingRecipes ? (
-                <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-                  <LoaderCircle className="size-4 animate-spin" />
-                  正在加载
+              {selectedRecipe ? (
+                <div className="mt-3 space-y-2">
+                  <div className="text-xl font-medium">
+                    {selectedRecipe.title}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    共 {selectedRecipe.stepCount}{" "}
+                    步，开始后会从第一步进入语音指导。
+                  </div>
                 </div>
               ) : (
-                <div className="text-sm text-muted-foreground">
-                  共 {recipes.length} 个 recipe
+                <div className="mt-3 text-sm text-muted-foreground">
+                  先从下方选择一道菜，再开始本次做菜会话。
                 </div>
               )}
             </div>
 
-            {recipesError ? (
-              <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-                {recipesError}
-              </div>
-            ) : null}
-
-            <div className="grid gap-3 md:grid-cols-2">
-              {recipes.map((recipe) => {
-                const isSelected = recipe.id === selectedRecipeId
-
-                return (
-                  <button
-                    key={recipe.id}
-                    className={[
-                      "rounded-2xl border p-4 text-left transition",
-                      isSelected
-                        ? "border-primary bg-primary/10 shadow-sm"
-                        : "border-border/70 bg-background/70 hover:border-primary/40 hover:bg-muted/60",
-                    ].join(" ")}
-                    onClick={() => setSelectedRecipeId(recipe.id)}
-                    type="button"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="font-medium">{recipe.title}</div>
-                        <div className="mt-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                          {recipe.slug}
-                        </div>
-                      </div>
-                      <div className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">
-                        {recipe.stepCount} steps
-                      </div>
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-
-            {!isLoadingRecipes && recipes.length === 0 && !recipesError ? (
-              <div className="rounded-2xl border border-border/70 bg-muted/50 p-4 text-sm text-muted-foreground">
-                当前没有可用的 preset recipe。
-              </div>
-            ) : null}
-          </div>
-        </section>
-
-        <aside className="rounded-3xl border border-border/70 bg-card/95 p-6 shadow-sm backdrop-blur">
-          <div className="space-y-2">
-            <h2 className="text-lg font-semibold tracking-tight">
-              Create Session
-            </h2>
-            <p className="text-sm leading-6 text-muted-foreground">
-              选择 recipe 后调用 API 创建 session，并展示返回的初始快照。
-            </p>
-          </div>
-
-          <div className="mt-6 rounded-2xl border border-border/70 bg-muted/40 p-4">
-            <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-              当前选择
-            </div>
-            {selectedRecipe ? (
-              <div className="mt-3 space-y-2">
-                <div className="text-lg font-medium">
-                  {selectedRecipe.title}
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  recipeId:{" "}
-                  <span className="font-mono text-foreground">
-                    {selectedRecipe.id}
-                  </span>
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  stepCount: {selectedRecipe.stepCount}
-                </div>
-              </div>
-            ) : (
-              <div className="mt-3 text-sm text-muted-foreground">
-                先从左侧列表选择一个 recipe。
-              </div>
-            )}
-          </div>
-
-          <div className="mt-6 flex items-center gap-3">
-            <Button
-              className="min-w-40"
-              disabled={
-                !selectedRecipeId ||
-                isCreatingSession ||
-                isLoadingRecipes ||
-                isJoiningVoice
-              }
-              onClick={() => void handleCreateSession()}
-            >
-              {isCreatingSession ? (
-                <>
-                  <LoaderCircle className="size-4 animate-spin" />
-                  正在创建
-                </>
-              ) : (
-                "Create Session"
-              )}
-            </Button>
-            <div className="text-sm text-muted-foreground">
-              创建成功后即可进入最小 voice 连接流程。
-            </div>
-          </div>
-
-          <div className="mt-4 rounded-2xl border border-border/70 bg-background/80 p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-sm font-medium">Join Voice Session</div>
-                <div className="mt-1 text-sm text-muted-foreground">
-                  通过 API 获取当前 session 的 LiveKit token，然后连接房间、开麦并等待 agent。
-                </div>
-              </div>
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
               <Button
+                className="min-h-12 text-base"
+                disabled={
+                  !selectedRecipeId ||
+                  isCreatingSession ||
+                  isLoadingRecipes ||
+                  isJoiningVoice
+                }
+                onClick={() => void handleCreateSession()}
+              >
+                {isCreatingSession ? (
+                  <>
+                    <LoaderCircle className="size-4 animate-spin" />
+                    正在开始
+                  </>
+                ) : (
+                  "开始这道菜"
+                )}
+              </Button>
+
+              <Button
+                className="min-h-12 text-base"
                 disabled={!sessionResult || isJoiningVoice || isCreatingSession}
                 onClick={() => void handleJoinVoice()}
                 variant="secondary"
@@ -575,137 +677,260 @@ export function App() {
                 {isJoiningVoice ? (
                   <>
                     <LoaderCircle className="size-4 animate-spin" />
-                    Connecting
+                    正在接通
                   </>
                 ) : (
-                  "Join Voice Session"
+                  "接通语音指导"
                 )}
               </Button>
             </div>
 
-            <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
-              <div className="rounded-xl border border-border/60 bg-muted/40 px-3 py-2">
-                {voiceStatus.connecting ? "Connecting" : "Not connected"}
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                    连接状态
+                  </div>
+                  <div className="mt-2 text-2xl font-semibold tracking-tight">
+                    {lifecycleStatus}
+                  </div>
+                </div>
+                <div className="rounded-full border border-primary/30 bg-background/85 px-3 py-1 text-sm font-medium text-primary">
+                  {tutorStatus}
+                </div>
               </div>
-              <div className="rounded-xl border border-border/60 bg-muted/40 px-3 py-2">
-                {voiceStatus.connected ? "Connected" : "Disconnected"}
+
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                <div className="rounded-xl border border-border/70 bg-background/90 px-3 py-2 text-sm">
+                  {microphoneStatus}
+                </div>
+                <div className="rounded-xl border border-border/70 bg-background/90 px-3 py-2 text-sm">
+                  {audioStatus}
+                </div>
+                <div className="rounded-xl border border-border/70 bg-background/90 px-3 py-2 text-sm sm:col-span-2">
+                  {sessionJoinStatus}
+                </div>
               </div>
-              <div className="rounded-xl border border-border/60 bg-muted/40 px-3 py-2">
-                Mic {voiceStatus.micEnabled ? "on" : "off"}
-              </div>
-              <div className="rounded-xl border border-border/60 bg-muted/40 px-3 py-2">
-                Audio {voiceStatus.audioReady ? "ready" : "locked"}
-              </div>
-              <div className="rounded-xl border border-border/60 bg-muted/40 px-3 py-2 sm:col-span-2">
-                Agent ready: {voiceStatus.agentReady ? "yes" : "waiting"}
-              </div>
+
+              <p className="mt-4 text-sm leading-6 text-muted-foreground">
+                接通语音指导后，优先跟着 tutor
+                往下做；页面只负责辅助查看状态，不替代语音主流程。
+              </p>
             </div>
 
-            {connectResult ? (
-              <div className="mt-4 rounded-xl border border-border/60 bg-background/80 px-3 py-3 text-sm">
-                <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                  roomName
-                </div>
-                <div className="mt-1 font-mono">{connectResult.roomName}</div>
+            {createError ? (
+              <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+                {createError}
               </div>
             ) : null}
 
-            <div className="sr-only" ref={audioHostRef} />
-          </div>
+            {voiceError ? (
+              <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+                {voiceError}
+              </div>
+            ) : null}
 
-          {createError ? (
-            <div className="mt-4 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-              {createError}
-            </div>
-          ) : null}
-
-          {voiceError ? (
-            <div className="mt-4 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-              {voiceError}
-            </div>
-          ) : null}
-
-          <div className="mt-6 space-y-3">
-            <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-              Session Snapshot
-            </div>
-            {displayedSnapshot ? (
-              <div className="space-y-3 rounded-2xl border border-border/70 bg-background/80 p-4">
-                <div>
-                  <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                    sessionId
-                  </div>
-                  <div className="mt-1 font-mono text-sm">
-                    {displayedSnapshot.sessionId}
-                  </div>
+            {displayedSummary && displayedSnapshot?.status === "completed" ? (
+              <div className="rounded-3xl border border-border/70 bg-background/90 p-5 shadow-sm">
+                <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                  本次做菜总结
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="mt-3 grid gap-4 sm:grid-cols-2">
                   <div>
-                    <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                      recipeTitle
+                    <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                      完成菜谱
                     </div>
-                    <div className="mt-1 text-sm font-medium">
-                      {displayedSnapshot.recipeTitle}
+                    <div className="mt-1 text-lg font-medium">
+                      {displayedSummary.recipeTitle}
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                      status
+                    <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                      结束时间
                     </div>
-                    <div className="mt-1 text-sm font-medium">
-                      {displayedSnapshot.status}
+                    <div className="mt-1 text-sm text-foreground">
+                      {displayedSummary.completedAt}
                     </div>
                   </div>
                 </div>
-                <div>
-                  <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                      currentStep
+
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                      结束于第几步
                     </div>
-                    <div className="mt-1 text-sm font-medium">
-                      {displayedSnapshot.currentStep.title}
-                    </div>
-                    <div className="mt-1 text-sm text-muted-foreground">
-                      {displayedSnapshot.currentStep.instruction}
+                    <div className="mt-1 text-sm text-foreground">
+                      第 {displayedSummary.finalStepIndex + 1} 步 / 共{" "}
+                      {displayedSummary.totalSteps} 步
                     </div>
                   </div>
-                <div>
-                  <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                    Active Timers
+                  <div>
+                    <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                      计时器结果
+                    </div>
+                    <div className="mt-1 text-sm text-foreground">
+                      已到点 {displayedSummary.expiredTimerCount} 个，已取消{" "}
+                      {displayedSummary.cancelledTimerCount} 个
+                    </div>
                   </div>
-                  <div className="mt-3 space-y-2">
-                    {timers.length > 0 ? (
-                      timers.map((timer) => (
-                        <div
-                          key={timer.timerId}
-                          className="rounded-xl border border-border/60 bg-muted/35 px-3 py-3 text-sm"
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="font-medium">{timer.label}</div>
-                            <div className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                              {timer.status}
-                            </div>
-                          </div>
-                          <div className="mt-1 text-muted-foreground">
-                            remainingSec: {formatRemainingTime(timer.remainingSec)}
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="rounded-xl border border-dashed border-border/70 bg-muted/20 px-3 py-3 text-sm text-muted-foreground">
-                        当前没有 Active Timers。
-                      </div>
-                    )}
-                  </div>
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-border/70 bg-muted/35 px-4 py-4 text-sm leading-6 text-foreground">
+                  {displayedSummary.completionMessage}
                 </div>
               </div>
             ) : (
-              <div className="rounded-2xl border border-dashed border-border/80 bg-background/60 p-4 text-sm text-muted-foreground">
-                创建成功后，这里会显示 `sessionId`、`recipeTitle`、`status` 和
-                `currentStep.title`，加入 voice session 后还会投影 `Active Timers`。
+              <div className="rounded-3xl border border-border/70 bg-background/90 p-5 shadow-sm">
+                <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                  当前进度
+                </div>
+                {displayedSnapshot ? (
+                  <div className="mt-3 space-y-5">
+                    <div>
+                      <div className="text-lg font-semibold">
+                        {getStepProgressLabel(displayedSnapshot)}
+                      </div>
+                      <div className="mt-1 text-sm text-muted-foreground">
+                        当前菜谱：{displayedSnapshot.recipeTitle}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                        当前步骤
+                      </div>
+                      <div className="mt-2 text-lg font-medium">
+                        {displayedSnapshot.currentStep.title}
+                      </div>
+                      <div className="mt-2 text-sm leading-6 text-muted-foreground">
+                        {displayedSnapshot.currentStep.instruction}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                        正在计时
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {visibleTimers.length > 0 ? (
+                          visibleTimers.map((timer) => (
+                            <div
+                              key={timer.timerId}
+                              className="rounded-2xl border border-border/70 bg-muted/25 px-4 py-3"
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="font-medium">{timer.label}</div>
+                                <div className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">
+                                  {getTimerStatusLabel(timer.status)}
+                                </div>
+                              </div>
+                              <div className="mt-2 text-sm text-muted-foreground">
+                                剩余时间：{timer.remainingTimeLabel}
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="rounded-2xl border border-dashed border-border/80 bg-muted/15 px-4 py-4 text-sm leading-6 text-muted-foreground">
+                            当前没有正在计时的项目。需要时直接对 tutor
+                            说“帮我设一个 timer”。
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-3 rounded-2xl border border-dashed border-border/80 bg-muted/15 px-4 py-4 text-sm leading-6 text-muted-foreground">
+                    开始这道菜后，这里会显示当前进度和正在计时的内容。
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="sr-only" ref={audioHostRef} />
+          </div>
+        </aside>
+
+        <section className="order-2 rounded-3xl border border-border/70 bg-card/95 p-5 shadow-sm backdrop-blur sm:p-6">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                选择一道菜
+              </div>
+              <h2 className="mt-2 text-xl font-semibold tracking-tight">
+                先定好菜谱，再接通语音 tutor
+              </h2>
+            </div>
+
+            {isLoadingRecipes ? (
+              <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                <LoaderCircle className="size-4 animate-spin" />
+                正在加载
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                共 {recipes.length} 道菜
               </div>
             )}
           </div>
-        </aside>
+
+          {recipesError ? (
+            <div className="mt-5 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+              {recipesError}
+            </div>
+          ) : null}
+
+          <div
+            aria-label="选择菜谱"
+            className="mt-6 grid gap-3 md:grid-cols-2"
+            role="radiogroup"
+          >
+            {recipes.map((recipe) => {
+              const isSelected = recipe.id === selectedRecipeId
+
+              return (
+                <button
+                  aria-checked={isSelected}
+                  aria-label={`选择菜谱 ${recipe.title}`}
+                  key={recipe.id}
+                  className={[
+                    "rounded-3xl border px-4 py-4 text-left transition focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+                    isSelected
+                      ? "border-primary bg-primary/10 shadow-sm"
+                      : "border-border/70 bg-background/75 hover:border-primary/40 hover:bg-muted/45",
+                  ].join(" ")}
+                  onClick={() => setSelectedRecipeId(recipe.id)}
+                  role="radio"
+                  type="button"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-lg font-medium">{recipe.title}</div>
+                      <div className="mt-1 text-sm text-muted-foreground">
+                        {recipe.slug}
+                      </div>
+                    </div>
+                    <div className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">
+                      共 {recipe.stepCount} 步
+                    </div>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+
+          {!isLoadingRecipes && recipes.length === 0 && !recipesError ? (
+            <div className="mt-5 rounded-2xl border border-border/70 bg-muted/35 p-4 text-sm text-muted-foreground">
+              当前没有可开始的菜谱，请稍后再试。
+            </div>
+          ) : null}
+        </section>
+
+        <div aria-atomic="true" aria-live="polite" className="sr-only">
+          {politeAnnouncement}
+        </div>
+        <div aria-atomic="true" aria-live="assertive" className="sr-only">
+          {assertiveAnnouncement}
+        </div>
       </div>
     </main>
   )

@@ -39,6 +39,16 @@ export type SessionCommandResult = {
   timerId?: string | null
 }
 
+export type SessionSummary = {
+  recipeTitle: string
+  completedAt: string
+  finalStepIndex: number
+  totalSteps: number
+  expiredTimerCount: number
+  cancelledTimerCount: number
+  completionMessage: string
+}
+
 export type SessionSnapshot = {
   sessionId: string
   recipeId: string
@@ -50,6 +60,7 @@ export type SessionSnapshot = {
   recipeContext: PresetRecipe
   activeTimers: SessionTimer[]
   lastCommandResult: SessionCommandResult | null
+  summary: SessionSummary | null
   createdAt: string
   updatedAt: string
 }

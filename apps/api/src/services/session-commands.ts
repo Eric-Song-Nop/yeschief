@@ -152,11 +152,25 @@ export const runSessionCommand = (
       }
 
       cancelRunningTimersForSession(session.sessionId, databaseUrl)
+      const timers = listTimers(session.sessionId, databaseUrl).timers
+      const completedAt = new Date().toISOString()
 
       const nextSession = {
         ...session,
         status: "completed" as const,
         activeTimers: [],
+        summary: {
+          recipeTitle: session.recipeTitle,
+          completedAt,
+          finalStepIndex: session.currentStepIndex,
+          totalSteps: session.totalSteps,
+          expiredTimerCount: timers.filter((timer) => timer.status === "expired")
+            .length,
+          cancelledTimerCount: timers.filter(
+            (timer) => timer.status === "cancelled"
+          ).length,
+          completionMessage: "本次做菜已结束。",
+        },
       }
 
       return persistWithResult(

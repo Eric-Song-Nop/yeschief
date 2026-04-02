@@ -4,6 +4,7 @@ import type {
   GetSessionResult,
   GetSessionTimersResult,
   RecipeSummary,
+  SessionTimer,
 } from "@yes-chief/shared"
 
 const API_BASE_URL =
@@ -11,6 +12,25 @@ const API_BASE_URL =
 
 type ApiError = {
   message?: string
+}
+
+export type CompanionTimer = {
+  timerId: string
+  label: string
+  status: SessionTimer["status"]
+  stepIndex: number
+  remainingTimeLabel: string
+}
+
+const formatCountdownLabel = (seconds?: number) => {
+  if (typeof seconds !== "number" || Number.isNaN(seconds)) {
+    return "--:--"
+  }
+
+  const minutes = Math.floor(seconds / 60)
+  const remainder = seconds % 60
+
+  return `${minutes}:${remainder.toString().padStart(2, "0")}`
 }
 
 const requestJson = async <T>(path: string, init?: RequestInit): Promise<T> => {
@@ -58,3 +78,12 @@ export const getSession = (sessionId: string) =>
 
 export const listSessionTimers = (sessionId: string) =>
   requestJson<GetSessionTimersResult>(`/sessions/${sessionId}/timers`)
+
+export const toCompanionTimers = (timers: SessionTimer[]): CompanionTimer[] =>
+  timers.map((timer) => ({
+    timerId: timer.timerId,
+    label: timer.label,
+    status: timer.status,
+    stepIndex: timer.stepIndex,
+    remainingTimeLabel: formatCountdownLabel(timer.remainingSec),
+  }))

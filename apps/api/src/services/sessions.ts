@@ -58,6 +58,7 @@ const toSessionSnapshot = (
     activeTimers,
     currentStep,
     lastCommandResult: snapshot.lastCommandResult ?? null,
+    summary: snapshot.summary ?? null,
     recipeContext,
     totalSteps: recipeContext.steps.length,
   }
@@ -85,6 +86,7 @@ const buildSessionSnapshot = (recipe: PresetRecipe): SessionSnapshot => {
     recipeContext: recipe,
     activeTimers: [],
     lastCommandResult: null,
+    summary: null,
     createdAt: now,
     updatedAt: now,
   }

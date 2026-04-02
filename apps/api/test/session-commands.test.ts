@@ -121,6 +121,15 @@ describe("session command routes", () => {
       expect(ended.response.status).toBe(200)
       expect(ended.body.session.status).toBe("completed")
       expect(ended.body.session.activeTimers).toEqual([])
+      expect(ended.body.session.summary).toEqual({
+        recipeTitle: session.recipeTitle,
+        completedAt: expect.any(String),
+        finalStepIndex: session.currentStepIndex,
+        totalSteps: session.totalSteps,
+        expiredTimerCount: 0,
+        cancelledTimerCount: 1,
+        completionMessage: "本次做菜已结束。",
+      })
 
       const timers = await requestJson(
         app,

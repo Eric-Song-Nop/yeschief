@@ -33,6 +33,7 @@ describe("session context snapshot", () => {
       expect(session.recipeContext.steps[0]?.heatLevel).toBe("off")
       expect(session.recipeContext.substitutions.length).toBeGreaterThan(0)
       expect(session.activeTimers).toEqual([])
+      expect(session.summary).toBeNull()
     })
   })
 
@@ -88,6 +89,7 @@ describe("session context snapshot", () => {
       expect(session.lastCommandResult.message).toBe(
         "Paused while the pan stays warm."
       )
+      expect(session.summary).toBeNull()
     })
   })
 })

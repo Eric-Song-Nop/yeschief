@@ -99,6 +99,7 @@ export const buildPausedSessionSnapshotFixture = () => {
       ok: true,
       sessionId: "session-fixture-paused",
     },
+    summary: null,
     createdAt: "2026-04-01T08:59:00.000Z",
     updatedAt: "2026-04-01T09:00:00.000Z",
   }
