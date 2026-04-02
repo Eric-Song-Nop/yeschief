@@ -8,7 +8,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { cn } from "@/lib/utils"
 
 type ConnectionStatusProps = {
   audioStatus: string
@@ -17,7 +16,6 @@ type ConnectionStatusProps = {
   sessionJoinStatus: string
   tutorStatus: string
   voiceActivityLabel: string
-  voiceActivityLevel: number
   voiceActivityState: VoiceActivityState
 }
 
@@ -39,7 +37,6 @@ export function ConnectionStatus({
   sessionJoinStatus,
   tutorStatus,
   voiceActivityLabel,
-  voiceActivityLevel,
   voiceActivityState,
 }: ConnectionStatusProps) {
   return (
@@ -76,34 +73,11 @@ export function ConnectionStatus({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-border/70 bg-background/90 px-4 py-4">
-          <div className="flex items-center justify-between gap-3 text-sm">
-            <span>语音活动</span>
-            <span className="text-muted-foreground">{voiceActivityLabel}</span>
+        <div className="rounded-2xl border border-border/70 bg-background/90 px-4 py-4 text-sm">
+          <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+            语音活动
           </div>
-          <div className="mt-3 flex items-center gap-2">
-            {Array.from({ length: 12 }, (_, index) => {
-              const intensity = Math.max(
-                0.18,
-                Math.min(1, voiceActivityLevel * 1.25 - index * 0.05)
-              )
-
-              return (
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    "h-7 flex-1 rounded-full bg-primary/15 transition-all duration-150",
-                    voiceActivityState === "speaking" && "bg-primary/70"
-                  )}
-                  key={`voice-bar-${index}`}
-                  style={{
-                    opacity: intensity,
-                    transform: `scaleY(${0.55 + intensity * 0.85})`,
-                  }}
-                />
-              )
-            })}
-          </div>
+          <div className="mt-2 font-medium">{voiceActivityLabel}</div>
         </div>
       </CardContent>
     </Card>

@@ -1,6 +1,9 @@
 import type { ReactNode } from "react"
 import type { SessionSnapshot } from "@yes-chief/shared"
 
+import type { VoiceActivityState } from "@/hooks/use-livekit-room"
+
+import { VoiceActivityVisualizer } from "@/components/companion/voice-activity-visualizer"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -34,6 +37,8 @@ type SessionDashboardProps = {
   summary?: string | null
   timerPanel: ReactNode
   visibleSnapshot: SessionSnapshot
+  voiceActivityLevel: number
+  voiceActivityState: VoiceActivityState
 }
 
 export function SessionDashboard({
@@ -43,11 +48,17 @@ export function SessionDashboard({
   summary,
   timerPanel,
   visibleSnapshot,
+  voiceActivityLevel,
+  voiceActivityState,
 }: SessionDashboardProps) {
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(21rem,0.95fr)]">
       <div className="space-y-6">
         {statusPanel}
+        <VoiceActivityVisualizer
+          voiceActivityLevel={voiceActivityLevel}
+          voiceActivityState={voiceActivityState}
+        />
 
         <Card className="overflow-hidden border-border/70 bg-background/90 shadow-lg shadow-primary/5">
           <CardHeader className="gap-4 border-b border-border/70 bg-muted/20">

@@ -4,6 +4,7 @@ import type {
 } from "@yes-chief/shared"
 import { Soup } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
+import { toast } from "sonner"
 import { ConnectionStatus } from "@/components/companion/connection-status"
 import { RecipeSelection } from "@/components/companion/recipe-selection"
 import { SessionDashboard } from "@/components/companion/session-dashboard"
@@ -113,6 +114,8 @@ export function App() {
   const [assertiveAnnouncement, setAssertiveAnnouncement] = useState("")
   const previousVoiceStatusRef = useRef(initialVoiceStatus)
   const previousTimersRef = useRef<CompanionTimer[]>([])
+  const previousPoliteAnnouncementRef = useRef("")
+  const previousAssertiveAnnouncementRef = useRef("")
   const {
     audioHostRef,
     connectResult,
@@ -315,6 +318,28 @@ export function App() {
     }
   }, [roomVoiceError])
 
+  useEffect(() => {
+    if (
+      politeAnnouncement &&
+      politeAnnouncement !== previousPoliteAnnouncementRef.current
+    ) {
+      toast.success(politeAnnouncement)
+    }
+
+    previousPoliteAnnouncementRef.current = politeAnnouncement
+  }, [politeAnnouncement])
+
+  useEffect(() => {
+    if (
+      assertiveAnnouncement &&
+      assertiveAnnouncement !== previousAssertiveAnnouncementRef.current
+    ) {
+      toast.error(assertiveAnnouncement)
+    }
+
+    previousAssertiveAnnouncementRef.current = assertiveAnnouncement
+  }, [assertiveAnnouncement])
+
   const connectionStatusPanel = (
     <ConnectionStatus
       audioStatus={audioStatus}
@@ -323,7 +348,6 @@ export function App() {
       sessionJoinStatus={sessionJoinStatus}
       tutorStatus={tutorStatus}
       voiceActivityLabel={voiceActivityLabel}
-      voiceActivityLevel={voiceActivityLevel}
       voiceActivityState={voiceActivityState}
     />
   )
@@ -345,6 +369,8 @@ export function App() {
         summary={activeSummary}
         timerPanel={timerListPanel}
         visibleSnapshot={displayedSnapshot}
+        voiceActivityLevel={voiceActivityLevel}
+        voiceActivityState={voiceActivityState}
       />
     ) : (
       <RecipeSelection
