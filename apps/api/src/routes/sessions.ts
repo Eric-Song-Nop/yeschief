@@ -6,10 +6,15 @@ import type {
   DeleteSessionRoomResult,
   GetSessionResult,
   GetSessionTimersResult,
+  ListSessionsResult,
   SessionCommandRequest,
   SessionCommandResponse,
 } from "@yes-chief/shared"
-import { createSession, getSessionById } from "../services/sessions"
+import {
+  createSession,
+  getSessionById,
+  listSessions,
+} from "../services/sessions"
 import { connectSession, deleteSessionRoom } from "../services/livekit-connect"
 import { runSessionCommand } from "../services/session-commands"
 import { listTimers } from "../services/timers"
@@ -52,6 +57,11 @@ export const sessionsRoutes = new Elysia({ name: "sessions-routes" })
     set.status = 201
 
     return result satisfies CreateSessionResult
+  })
+  .get("/sessions", () => {
+    const result = listSessions(Bun.env.DATABASE_URL)
+
+    return result satisfies ListSessionsResult
   })
   .get("/sessions/:sessionId", ({ params, set }) => {
     const result = getSessionById(params.sessionId)

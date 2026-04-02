@@ -137,7 +137,7 @@ describe("recipe and session routes", () => {
         (await firstCreateResponse.json()) as CreateSessionResult
       const secondCreateResponse = await app.handle(
         new Request("http://localhost/sessions", {
-          body: JSON.stringify({ recipeId: "recipe-tomato-pasta" }),
+          body: JSON.stringify({ recipeId: "recipe-omelette" }),
           headers: {
             "content-type": "application/json",
           },

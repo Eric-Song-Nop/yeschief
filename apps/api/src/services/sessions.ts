@@ -2,7 +2,9 @@ import type {
   CreateSessionInput,
   CreateSessionResult,
   GetSessionResult,
+  ListSessionsResult,
   PresetRecipe,
+  SessionRecoveryItem,
   SessionSnapshot,
 } from "@yes-chief/shared"
 import { getDatabase } from "../persistence/db"
@@ -171,6 +173,50 @@ export const getSessionById = (
 
   return {
     session: toSessionSnapshot(session, databaseUrl),
+  }
+}
+
+const toSessionRecoveryItem = (
+  session: SessionSnapshot,
+  databaseUrl?: string
+): SessionRecoveryItem => {
+  const hydratedSession = toSessionSnapshot(session, databaseUrl)
+
+  return {
+    currentStepIndex: hydratedSession.currentStepIndex,
+    recipeTitle: hydratedSession.recipeTitle,
+    sessionId: hydratedSession.sessionId,
+    status: hydratedSession.status,
+    summary: hydratedSession.summary,
+    totalSteps: hydratedSession.totalSteps,
+    updatedAt: hydratedSession.updatedAt,
+  }
+}
+
+export const listSessions = (databaseUrl?: string): ListSessionsResult => {
+  const sqlite = getDatabase(databaseUrl)
+  const rows = sqlite
+    .prepare(`
+      SELECT
+        "id",
+        "recipeId",
+        "status",
+        "currentStepIndex",
+        "snapshotJson",
+        "createdAt",
+        "updatedAt"
+      FROM sessions
+      ORDER BY "updatedAt" DESC
+    `)
+    .all() as SessionRow[]
+
+  return {
+    sessions: rows.map((row) =>
+      toSessionRecoveryItem(
+        JSON.parse(row.snapshotJson) as SessionSnapshot,
+        databaseUrl
+      )
+    ),
   }
 }
 

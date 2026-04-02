@@ -87,6 +87,20 @@ export type GetSessionResult = {
   session: SessionSnapshot
 }
 
+export type SessionRecoveryItem = {
+  sessionId: string
+  recipeTitle: string
+  status: SessionStatus
+  currentStepIndex: number
+  totalSteps: number
+  updatedAt: string
+  summary: SessionSummary | null
+}
+
+export type ListSessionsResult = {
+  sessions: SessionRecoveryItem[]
+}
+
 export type ConnectSessionResult = {
   sessionId: string
   roomName: string
