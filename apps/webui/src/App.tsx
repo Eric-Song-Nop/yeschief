@@ -1,22 +1,13 @@
 import type {
   ConnectSessionResult,
-  CreateSessionResult,
-  RecipeSummary,
   SessionSnapshot,
 } from "@yes-chief/shared"
 import { Track, Room, RoomEvent, type RemoteTrack } from "livekit-client"
 import { LoaderCircle, Soup } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
-import {
-  connectSession,
-  createSession,
-  getSession,
-  listPresetRecipes,
-  listSessionTimers,
-  toCompanionTimers,
-  type CompanionTimer,
-} from "@/lib/api"
+import { useCookingSession } from "@/hooks/use-cooking-session"
+import { connectSession, type CompanionTimer } from "@/lib/api"
 
 type VoiceStatus = {
   agentReady: boolean
@@ -115,19 +106,7 @@ const attachRemoteAudioTrack = (
 }
 
 export function App() {
-  const [recipes, setRecipes] = useState<RecipeSummary[]>([])
-  const [selectedRecipeId, setSelectedRecipeId] = useState("")
-  const [sessionResult, setSessionResult] =
-    useState<CreateSessionResult | null>(null)
-  const [latestSnapshot, setLatestSnapshot] = useState<SessionSnapshot | null>(
-    null
-  )
-  const [timers, setTimers] = useState<CompanionTimer[]>([])
-  const [isLoadingRecipes, setIsLoadingRecipes] = useState(true)
-  const [recipesError, setRecipesError] = useState("")
-  const [isCreatingSession, setIsCreatingSession] = useState(false)
   const [isJoiningVoice, setIsJoiningVoice] = useState(false)
-  const [createError, setCreateError] = useState("")
   const [voiceError, setVoiceError] = useState("")
   const [voiceStatus, setVoiceStatus] = useState(initialVoiceStatus)
   const [politeAnnouncement, setPoliteAnnouncement] = useState("")
@@ -139,49 +118,23 @@ export function App() {
   const attachedAudioRef = useRef(new Map<string, HTMLMediaElement>())
   const previousVoiceStatusRef = useRef(initialVoiceStatus)
   const previousTimersRef = useRef<CompanionTimer[]>([])
-
-  useEffect(() => {
-    let cancelled = false
-
-    const loadRecipes = async () => {
-      setIsLoadingRecipes(true)
-      setRecipesError("")
-
-      try {
-        const nextRecipes = await listPresetRecipes()
-
-        if (cancelled) {
-          return
-        }
-
-        setRecipes(nextRecipes)
-        setSelectedRecipeId(
-          (currentRecipeId) => currentRecipeId || nextRecipes[0]?.id || ""
-        )
-      } catch (error) {
-        if (cancelled) {
-          return
-        }
-
-        setRecipesError(
-          buildApiRecoveryMessage(
-            error instanceof Error ? error.message : undefined,
-            "暂时无法加载可选菜谱。"
-          )
-        )
-      } finally {
-        if (!cancelled) {
-          setIsLoadingRecipes(false)
-        }
-      }
-    }
-
-    void loadRecipes()
-
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  const {
+    createError,
+    createSessionForSelectedRecipe,
+    isCreatingSession,
+    isLoadingRecipes,
+    latestSnapshot,
+    recipes,
+    recipesError,
+    refreshCompanionState,
+    selectedRecipeId,
+    sessionResult,
+    setSelectedRecipeId,
+    syncError,
+    timers,
+  } = useCookingSession({
+    shouldSync: voiceStatus.connected,
+  })
 
   useEffect(() => {
     const attachedAudio = attachedAudioRef.current
@@ -202,54 +155,6 @@ export function App() {
       }
     }
   }, [])
-
-  useEffect(() => {
-    const sessionId = sessionResult?.session.sessionId
-
-    if (!sessionId || !voiceStatus.connected) {
-      return
-    }
-
-    let cancelled = false
-
-    const syncCompanionState = async () => {
-      try {
-        const [sessionResponse, timersResponse] = await Promise.all([
-          getSession(sessionId),
-          listSessionTimers(sessionId),
-        ])
-
-        if (cancelled) {
-          return
-        }
-
-        setLatestSnapshot(sessionResponse.session)
-        setTimers(toCompanionTimers(timersResponse.timers))
-      } catch (error) {
-        if (cancelled) {
-          return
-        }
-
-        setVoiceError(
-          buildApiRecoveryMessage(
-            error instanceof Error ? error.message : undefined,
-            "暂时无法同步当前会话。"
-          )
-        )
-      }
-    }
-
-    void syncCompanionState()
-
-    const timer = window.setInterval(() => {
-      void syncCompanionState()
-    }, 3000)
-
-    return () => {
-      cancelled = true
-      window.clearInterval(timer)
-    }
-  }, [sessionResult?.session.sessionId, voiceStatus.connected])
 
   const selectedRecipe =
     recipes.find((recipe) => recipe.id === selectedRecipeId) ?? null
@@ -277,32 +182,17 @@ export function App() {
   }
 
   const handleCreateSession = async () => {
-    if (!selectedRecipeId) {
-      setCreateError("请先选择一道菜再开始。")
-      return
-    }
-
-    setIsCreatingSession(true)
-    setCreateError("")
     setVoiceError("")
 
     try {
       await disconnectRoom()
-      const result = await createSession(selectedRecipeId)
+      const result = await createSessionForSelectedRecipe()
 
-      setSessionResult(result)
-      setLatestSnapshot(result.session)
-      setTimers(toCompanionTimers(result.session.activeTimers))
-      setPoliteAnnouncement("session 已创建")
-    } catch (error) {
-      setCreateError(
-        buildApiRecoveryMessage(
-          error instanceof Error ? error.message : undefined,
-          "暂时无法开始这道菜。"
-        )
-      )
-    } finally {
-      setIsCreatingSession(false)
+      if (result) {
+        setPoliteAnnouncement("session 已创建")
+      }
+    } catch {
+      return
     }
   }
 
@@ -458,13 +348,7 @@ export function App() {
         micEnabled: true,
       }))
 
-      const [sessionResponse, timersResponse] = await Promise.all([
-        getSession(sessionResult.session.sessionId),
-        listSessionTimers(sessionResult.session.sessionId),
-      ])
-
-      setLatestSnapshot(sessionResponse.session)
-      setTimers(toCompanionTimers(timersResponse.timers))
+      await refreshCompanionState()
     } catch (error) {
       await disconnectRoom()
       setVoiceError(
@@ -579,6 +463,12 @@ export function App() {
       setAssertiveAnnouncement(voiceError)
     }
   }, [voiceError])
+
+  useEffect(() => {
+    if (syncError) {
+      setVoiceError(syncError)
+    }
+  }, [syncError])
 
   return (
     <main className="min-h-svh bg-[radial-gradient(circle_at_top,oklch(0.99_0.02_95),transparent_42%),linear-gradient(180deg,oklch(0.99_0.01_95),oklch(0.96_0.01_95))] px-4 py-6 text-foreground sm:px-6 sm:py-8">
