@@ -284,4 +284,128 @@ describe("session connect route", () => {
       })
     })
   })
+
+  it("reuses existing room and dispatch on repeated connect requests", async () => {
+    await withTestDatabase(async () => {
+      await withLiveKitEnv(async () => {
+        const calls = {
+          createDispatch: 0,
+          createRoom: 0,
+          listDispatch: 0,
+          listRooms: 0,
+        }
+        let dispatchExists = false
+        let roomExists = false
+
+        await withMockedFetch(async (input) => {
+          const url =
+            typeof input === "string"
+              ? input
+              : input instanceof URL
+                ? input.toString()
+                : input.url
+
+          if (url.endsWith("/ListRooms")) {
+            calls.listRooms += 1
+
+            return jsonResponse({
+              rooms: roomExists ? [{ name: "room-name" }] : [],
+            })
+          }
+
+          if (url.endsWith("/CreateRoom")) {
+            calls.createRoom += 1
+            roomExists = true
+
+            return jsonResponse({
+              name: "room-name",
+              sid: "RM_123",
+            })
+          }
+
+          if (url.endsWith("/ListDispatch")) {
+            calls.listDispatch += 1
+
+            return jsonResponse({
+              agentDispatches: dispatchExists
+                ? [
+                    {
+                      agentName: "agent",
+                      id: "dispatch-1",
+                      metadata: '{"sessionId":"session"}',
+                      room: "room-name",
+                    },
+                  ]
+                : [],
+            })
+          }
+
+          if (url.endsWith("/CreateDispatch")) {
+            calls.createDispatch += 1
+            dispatchExists = true
+
+            return jsonResponse({
+              agentName: "agent",
+              id: "dispatch-1",
+              metadata: '{"sessionId":"session"}',
+              room: "room-name",
+            })
+          }
+
+          return new Response("Unexpected fetch", {
+            status: 500,
+          })
+        }, async () => {
+          const app = buildApp()
+          const createResponse = await app.handle(
+            new Request("http://localhost/sessions", {
+              body: JSON.stringify({ recipeId: "recipe-garlic-rice" }),
+              headers: {
+                "content-type": "application/json",
+              },
+              method: "POST",
+            })
+          )
+
+          expect(createResponse.status).toBe(201)
+
+          const created = (await createResponse.json()) as CreateSessionResult
+          const firstConnectResponse = await app.handle(
+            new Request(
+              `http://localhost/sessions/${created.session.sessionId}/connect`,
+              {
+                method: "POST",
+              }
+            )
+          )
+          const secondConnectResponse = await app.handle(
+            new Request(
+              `http://localhost/sessions/${created.session.sessionId}/connect`,
+              {
+                method: "POST",
+              }
+            )
+          )
+
+          expect(firstConnectResponse.status).toBe(200)
+          expect(secondConnectResponse.status).toBe(200)
+
+          const firstResult =
+            (await firstConnectResponse.json()) as ConnectSessionResult
+          const secondResult =
+            (await secondConnectResponse.json()) as ConnectSessionResult
+
+          expect(firstResult.roomName).toBe(created.session.sessionId)
+          expect(secondResult.roomName).toBe(created.session.sessionId)
+          expect(firstResult.participantToken).not.toBe(
+            secondResult.participantToken
+          )
+          expect(calls.listRooms).toBe(2)
+          expect(calls.listDispatch).toBe(2)
+          expect(calls.createRoom).toBe(1)
+          expect(calls.createDispatch).toBe(1)
+        })
+      })
+    })
+  })
 })
