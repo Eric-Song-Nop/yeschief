@@ -148,7 +148,14 @@ export const runSessionCommand = (
 
     case "end_session": {
       if (session.status === "completed") {
-        throw createServiceError(409, "Session is already completed")
+        return {
+          session,
+          result: buildResult(
+            session,
+            request.type,
+            "Session already completed."
+          ),
+        }
       }
 
       cancelRunningTimersForSession(session.sessionId, databaseUrl)

@@ -43,6 +43,26 @@ type ShutdownContext = Pick<JobContext, "addShutdownCallback" | "shutdown"> & {
   room: RoomLifecycle
 }
 
+type SnapshotStore = {
+  current: Awaited<ReturnType<SessionApiClient["getSession"]>>["session"]
+}
+
+export const syncSnapshotStoreFromApi = async ({
+  apiClient,
+  sessionId,
+  snapshotStore,
+}: {
+  apiClient: Pick<SessionApiClient, "getSession">
+  sessionId: string
+  snapshotStore: SnapshotStore
+}) => {
+  const latestSession = await apiClient.getSession(sessionId)
+
+  snapshotStore.current = latestSession.session
+
+  return latestSession.session
+}
+
 export const registerGracefulShutdown = ({
   ctx,
   session,
@@ -159,8 +179,14 @@ export default defineAgent({
       stopTimerReminderLoop,
     })
 
+    const latestSnapshot = await syncSnapshotStoreFromApi({
+      apiClient,
+      sessionId,
+      snapshotStore,
+    })
+
     session.generateReply({
-      instructions: `Start guiding the current cooking step immediately in a short, positive tutor tone. Do not greet generically. Current step: ${snapshotStore.current.currentStep.title}. Action: ${snapshotStore.current.currentStep.instruction}.`,
+      instructions: `Start guiding the current cooking step immediately in a short, positive tutor tone. Do not greet generically. Current step: ${latestSnapshot.currentStep.title}. Action: ${latestSnapshot.currentStep.instruction}.`,
     })
   },
 })

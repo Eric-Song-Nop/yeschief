@@ -653,4 +653,49 @@ describe("timer reminder orchestration", () => {
     stop()
     vi.useRealTimers()
   })
+
+  it("TIME-05: completed session 会停止 reminder loop，不再继续播报陈旧提醒", async () => {
+    vi.useFakeTimers()
+
+    const generateReply = vi.fn()
+    const session = {
+      generateReply,
+    }
+    const getTimers = vi.fn().mockResolvedValue({
+      sessionId: "session-voice-test",
+      timers: [],
+    })
+
+    const stop = startTimerReminderLoop({
+      apiClient: {
+        async getSession() {
+          return {
+            session: {
+              ...buildSessionSnapshotFixture(),
+              status: "completed",
+            },
+          }
+        },
+        async getTimers() {
+          return getTimers()
+        },
+        async postCommand() {
+          throw new Error("postCommand should not be called")
+        },
+      },
+      session,
+      sessionId: "session-voice-test",
+      snapshotStore: {
+        current: buildSessionSnapshotFixture(),
+      },
+    })
+
+    await vi.advanceTimersByTimeAsync(2000)
+
+    expect(generateReply).not.toHaveBeenCalled()
+    expect(getTimers).not.toHaveBeenCalled()
+
+    stop()
+    vi.useRealTimers()
+  })
 })

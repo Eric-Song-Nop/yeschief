@@ -27,11 +27,33 @@ export const startTimerReminderLoop = ({
   const announcedTimerIds = new Set<string>()
   let stopped = false
 
+  const stopLoop = () => {
+    if (stopped) {
+      return
+    }
+
+    stopped = true
+    clearInterval(intervalHandle)
+  }
+
   const intervalHandle = setInterval(async () => {
+    if (stopped) {
+      return
+    }
+
     try {
+      const latestSession = await apiClient.getSession(sessionId)
+
+      snapshotStore.current = latestSession.session
+
+      if (latestSession.session.status === "completed") {
+        stopLoop()
+        return
+      }
+
       const timersResult = await apiClient.getTimers(sessionId)
       snapshotStore.current = {
-        ...snapshotStore.current,
+        ...latestSession.session,
         activeTimers: timersResult.timers.filter(
           (timer) => timer.status === "running"
         ),
@@ -44,12 +66,18 @@ export const startTimerReminderLoop = ({
         ) {
           announcedTimerIds.add(timer.timerId)
 
-          const latestSession = await apiClient.getSession(sessionId)
-          snapshotStore.current = latestSession.session
+          const refreshedSession = await apiClient.getSession(sessionId)
+
+          snapshotStore.current = refreshedSession.session
+
+          if (refreshedSession.session.status === "completed" || stopped) {
+            stopLoop()
+            return
+          }
 
           await Promise.resolve(
             session.generateReply({
-              instructions: `The timer "${timer.label}" has expired. Give a short reminder, then bring the user back to the current step "${latestSession.session.currentStep.title}" with the action "${latestSession.session.currentStep.instruction}".`,
+              instructions: `The timer "${timer.label}" has expired. Give a short reminder, then bring the user back to the current step "${refreshedSession.session.currentStep.title}" with the action "${refreshedSession.session.currentStep.instruction}".`,
             })
           )
         }
@@ -61,12 +89,5 @@ export const startTimerReminderLoop = ({
     }
   }, intervalMs)
 
-  return () => {
-    if (stopped) {
-      return
-    }
-
-    stopped = true
-    clearInterval(intervalHandle)
-  }
+  return stopLoop
 }

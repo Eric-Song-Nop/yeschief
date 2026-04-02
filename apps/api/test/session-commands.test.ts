@@ -141,4 +141,45 @@ describe("session command routes", () => {
       expect(timers.body.timers[0].status).toBe("cancelled")
     })
   })
+
+  it("end_session is idempotent once the session is already completed", async () => {
+    await withTestDatabase(async (databaseUrl) => {
+      seedPresetRecipes(databaseUrl)
+      const app = buildApp()
+      const session = seedCommandableSession(databaseUrl)
+
+      seedRunningTimer({
+        databaseUrl,
+        session,
+        label: "Reduce stock",
+        targetAt: new Date(Date.now() + 60_000).toISOString(),
+        timerId: "timer-end-session-idempotent",
+      })
+
+      const firstEnd = await postCommand(app, session.sessionId, {
+        type: "end_session",
+      })
+
+      expect(firstEnd.response.status).toBe(200)
+
+      const secondEnd = await postCommand(app, session.sessionId, {
+        type: "end_session",
+      })
+
+      expect(secondEnd.response.status).toBe(200)
+      expect(secondEnd.body.result.message).toBe("Session already completed.")
+      expect(secondEnd.body.session.status).toBe("completed")
+      expect(secondEnd.body.session.summary).toEqual(firstEnd.body.session.summary)
+      expect(secondEnd.body.session.updatedAt).toBe(firstEnd.body.session.updatedAt)
+
+      const timers = await requestJson(
+        app,
+        new Request(`http://localhost/sessions/${session.sessionId}/timers`)
+      )
+
+      expect(timers.response.status).toBe(200)
+      expect(timers.body.timers).toHaveLength(1)
+      expect(timers.body.timers[0].status).toBe("cancelled")
+    })
+  })
 })

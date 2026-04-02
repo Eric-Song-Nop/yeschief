@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 import { loadAgentEnv } from "./env"
-import { registerGracefulShutdown } from "./main"
+import { registerGracefulShutdown, syncSnapshotStoreFromApi } from "./main"
 
 const ROOM_DISCONNECTED_EVENT = "disconnected" as const
 
@@ -70,5 +70,41 @@ describe("agent runtime smoke", () => {
 
     expect(stopTimerReminderLoop).toHaveBeenCalledTimes(1)
     expect(closeSession).toHaveBeenCalledTimes(1)
+  })
+
+  it("refreshes the snapshot store from the latest API session before guidance", async () => {
+    const snapshotStore = {
+      current: {
+        currentStep: {
+          id: "stale-step",
+          title: "Old step",
+          instruction: "Old instruction",
+        },
+      },
+    } as any
+
+    const latestSession = {
+      session: {
+        ...snapshotStore.current,
+        currentStep: {
+          id: "fresh-step",
+          title: "Fresh step",
+          instruction: "Fresh instruction",
+        },
+      },
+    }
+    const getSession = vi.fn().mockResolvedValue(latestSession)
+
+    const refreshed = await syncSnapshotStoreFromApi({
+      apiClient: {
+        getSession,
+      } as any,
+      sessionId: "session-runtime-smoke",
+      snapshotStore,
+    })
+
+    expect(getSession).toHaveBeenCalledWith("session-runtime-smoke")
+    expect(refreshed.currentStep.title).toBe("Fresh step")
+    expect(snapshotStore.current.currentStep.title).toBe("Fresh step")
   })
 })
